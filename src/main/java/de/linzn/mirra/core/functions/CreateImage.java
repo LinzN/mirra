@@ -26,11 +26,11 @@ public class CreateImage implements IFunction{
     public ChatFunctionDynamic getFunctionString() {
         return  ChatFunctionDynamic.builder()
                 .name(this.functionName())
-                .description("Generate an image based of a given description and returns as a web url")
+                .description("Create an image based of a given description and returns as a web url")
                 .addProperty(ChatFunctionProperty.builder()
                         .name("imageDescription")
                         .type("string")
-                        .description("The description to generate the image like 'A black cat sitting in front of a house while sunrises'")
+                        .description("The description to create the image like 'A black cat sitting in front of a house while sunrises'")
                         .required(true)
                         .build())
                 .build();
