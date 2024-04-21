@@ -1,0 +1,128 @@
+<!--
+  ~ Copyright (C) 2020. Niklas Linz - All Rights Reserved
+  ~ You may use, distribute and modify this code under the
+  ~ terms of the LGPLv3 license, which unfortunately won't be
+  ~ written for another century.
+  ~
+  ~ You should have received a copy of the LGPLv3 license with
+  ~ this file. If not, please write to: niklas.linz@enigmar.de
+  ~
+  -->
+
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>de.stem.plugins</groupId>
+    <name>mirra</name>
+    <repositories>
+        <repository>
+            <id>Stem Builds Repository</id>
+            <url>https://builds.app.stem-system.de/plugin/repository/everything/</url>
+        </repository>
+        <repository>
+            <id>Mvn-repository</id>
+            <url>https://mvnrepository.com/artifact/</url>
+        </repository>
+    </repositories>
+    <build>
+        <finalName>${project.name}</finalName>
+        <resources>
+            <resource>
+                <directory>${project.basedir}/src/main/resources</directory>
+                <includes>
+                    <include>**</include>
+                </includes>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>2.0.2</version>
+                <configuration>
+                    <source>21</source>
+                    <target>21</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>2.1</version>
+                <configuration>
+                    <archive>
+                        <addMavenDescriptor>false</addMavenDescriptor>
+                    </archive>
+                    <finalName>${project.name}</finalName>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-dependency-plugin</artifactId>
+
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+
+                        <configuration>
+                            <outputDirectory>target/export-lib</outputDirectory>
+                            <excludeGroupIds>de.stem, de.stem.plugins, org.yaml, org.json, org.eclipse,
+                                org.xerial, org.slf4j, com.google.*, com.google, org.codehaus.mojo,
+                                org.checkerframework, mysql
+                            </excludeGroupIds>
+                            <excludeArtifactIds>openJL, simplyDatabase, simplyLogger, simplyConfiguration, stemLink
+                            </excludeArtifactIds>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+    <version>1.0-SNAPSHOT</version>
+    <artifactId>mirra</artifactId>
+    <dependencies>
+        <dependency>
+            <groupId>de.stem</groupId>
+            <artifactId>stem-system</artifactId>
+            <version>1.0.1-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>de.stem.plugins</groupId>
+            <artifactId>home-devices</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.theokanning.openai-gpt3-java</groupId>
+            <artifactId>service</artifactId>
+            <version>0.18.2</version>
+            <scope>compile</scope>
+            <type>jar</type>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.github.auties00</groupId>
+            <artifactId>cobalt</artifactId>
+            <version>0.0.5</version>
+        </dependency>
+        <dependency>
+            <groupId>net.dv8tion</groupId>
+            <artifactId>JDA</artifactId>
+            <version>5.0.0-beta.22</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>club.minnced</groupId>
+                    <artifactId>opus-java</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <buildServer.jobName>CUSTOM</buildServer.jobName>
+        <buildServer.buildNumber>SNAPSHOT</buildServer.buildNumber>
+    </properties>
+</project>
