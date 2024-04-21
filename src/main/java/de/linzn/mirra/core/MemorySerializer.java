@@ -15,7 +15,7 @@ public class MemorySerializer {
 
     private final String identity;
     private final LinkedList<ChatMessage> dataMemory;
-    private AIModel aiModel;
+    private final AIModel aiModel;
 
     public MemorySerializer(AIModel aiModel, String identity) {
         this.aiModel = aiModel;
@@ -27,10 +27,7 @@ public class MemorySerializer {
 
     public void memorizeData(ChatMessage chatMessage) {
         this.dataMemory.addLast(chatMessage);
-        /* TODO maybe save function calls also in database to prevent unwantet promt caches */
-        //if(chatMessage.getFunctionCall()== null && !chatMessage.getRole().equalsIgnoreCase("function")) {
         this.storeDatabase(chatMessage);
-        //}
     }
 
     public LinkedList<ChatMessage> accessMemory() {
