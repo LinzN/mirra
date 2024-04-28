@@ -22,7 +22,7 @@ public class SwitchLight implements IFunction {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("room", input.getString("room"));
 
-        if(identityUser.hasPermission(AiPermissions.CREATE_IMAGE)) {
+        if(identityUser.hasPermission(AiPermissions.SWITCH_LIGHT)) {
             MqttSwitch mqttSwitch = (MqttSwitch) HomeDevicesPlugin.homeDevicesPlugin.getDeviceManager().getMqttDevice(input.getString("room"));
 
             if (mqttSwitch != null) {
