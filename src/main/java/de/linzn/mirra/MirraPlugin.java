@@ -14,6 +14,7 @@ package de.linzn.mirra;
 
 import de.linzn.mirra.core.AIManager;
 import de.linzn.mirra.discord.DiscordManager;
+import de.linzn.mirra.identitySystem.IdentityManager;
 import de.linzn.mirra.listener.StemEventListener;
 import de.linzn.mirra.whatsapp.WhatsappManager;
 import de.stem.stemSystem.STEMSystemApp;
@@ -23,6 +24,7 @@ public class MirraPlugin extends STEMPlugin {
 
     public static MirraPlugin mirraPlugin;
 
+    private IdentityManager identityManager;
     private WhatsappManager whatsappManager;
     private DiscordManager discordManager;
     private AIManager aiManager;
@@ -35,6 +37,7 @@ public class MirraPlugin extends STEMPlugin {
     @Override
     public void onEnable() {
         this.aiManager = new AIManager();
+        this.identityManager = new IdentityManager();
         this.whatsappManager = new WhatsappManager();
         this.discordManager = new DiscordManager();
         STEMSystemApp.getInstance().getEventModule().getStemEventBus().register(new StemEventListener());
@@ -56,5 +59,9 @@ public class MirraPlugin extends STEMPlugin {
 
     public DiscordManager getDiscordManager() {
         return discordManager;
+    }
+
+    public IdentityManager getIdentityManager() {
+        return identityManager;
     }
 }

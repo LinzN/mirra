@@ -6,6 +6,7 @@ import com.theokanning.openai.image.Image;
 import com.theokanning.openai.service.OpenAiService;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.core.functions.IFunction;
+import de.linzn.mirra.identitySystem.IdentityUser;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
@@ -53,6 +54,8 @@ public class AIModel {
     }
 
     public String requestChatCompletion(List<String> inputData, String identity) {
+        IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(identity);
+        STEMSystemApp.LOGGER.CONFIG("Request by identityUser " + identityUser.getIdentityName());
         if (!this.memorySerializerHashMap.containsKey(identity)) {
             this.memorySerializerHashMap.put(identity, new MemorySerializer(this, identity));
         }
@@ -87,8 +90,7 @@ public class AIModel {
                 if (MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().hasFunction(functionCall.getName())) {
                     IFunction function = MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().getFunction(functionCall.getName());
                     JSONObject inputArguments = new JSONObject(functionCall.getArguments().toString());
-                    inputArguments.put("identity", identity);
-                    JSONObject jsonObject = function.completeRequest(inputArguments);
+                    JSONObject jsonObject = function.completeRequest(inputArguments, identityUser);
                     ChatMessage functionResponse = new ChatMessage(ChatMessageRole.FUNCTION.value(), jsonObject.toString(), functionCall.getName());
                     this.memorySerializerHashMap.get(identity).memorizeData(functionResponse);
                 }

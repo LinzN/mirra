@@ -7,6 +7,8 @@ import de.linzn.homeDevices.devices.enums.SwitchCategory;
 import de.linzn.homeDevices.devices.exceptions.DeviceNotInitializedException;
 import de.linzn.homeDevices.devices.interfaces.MqttDevice;
 import de.linzn.homeDevices.devices.interfaces.MqttSwitch;
+import de.linzn.mirra.identitySystem.AiPermissions;
+import de.linzn.mirra.identitySystem.IdentityUser;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
@@ -14,22 +16,27 @@ import java.util.Collection;
 
 public class StatusLight implements IFunction {
     @Override
-    public JSONObject completeRequest(JSONObject input) {
+    public JSONObject completeRequest(JSONObject input, IdentityUser identityUser) {
         STEMSystemApp.LOGGER.CORE(input);
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("success", true);
-        Collection<MqttDevice> devices = HomeDevicesPlugin.homeDevicesPlugin.getDeviceManager().getAllDevices();
-        for (MqttDevice device : devices) {
-            if (device.getDeviceProfile().getMqttDeviceCategory() == MqttDeviceCategory.SWITCH) {
-                try {
-                    MqttSwitch mqttSwitch = (MqttSwitch) device;
-                    if(mqttSwitch.switchCategory == SwitchCategory.LIGHT) {
-                        jsonObject.put(device.getDeviceProfile().getName(), mqttSwitch.getDeviceStatus());
+        if(identityUser.hasPermission(AiPermissions.STATUS_LIGHT)) {
+            jsonObject.put("success", true);
+            Collection<MqttDevice> devices = HomeDevicesPlugin.homeDevicesPlugin.getDeviceManager().getAllDevices();
+            for (MqttDevice device : devices) {
+                if (device.getDeviceProfile().getMqttDeviceCategory() == MqttDeviceCategory.SWITCH) {
+                    try {
+                        MqttSwitch mqttSwitch = (MqttSwitch) device;
+                        if (mqttSwitch.switchCategory == SwitchCategory.LIGHT) {
+                            jsonObject.put(device.getDeviceProfile().getName(), mqttSwitch.getDeviceStatus());
+                        }
+                    } catch (DeviceNotInitializedException e) {
+                        STEMSystemApp.LOGGER.ERROR(e);
                     }
-                } catch (DeviceNotInitializedException e) {
-                    STEMSystemApp.LOGGER.ERROR(e);
                 }
             }
+        }else {
+            jsonObject.put("success", false);
+            jsonObject.put("reason", "No permissions");
         }
         return jsonObject;
     }

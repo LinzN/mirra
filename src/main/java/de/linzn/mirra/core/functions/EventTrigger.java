@@ -1,12 +1,13 @@
 package de.linzn.mirra.core.functions;
 
 import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
+import de.linzn.mirra.identitySystem.IdentityUser;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
 public class EventTrigger implements IFunction {
     @Override
-    public JSONObject completeRequest(JSONObject input) {
+    public JSONObject completeRequest(JSONObject input, IdentityUser identityUser) {
         STEMSystemApp.LOGGER.CORE("Tis is a standalone function. No external call allowed");
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("success", false);

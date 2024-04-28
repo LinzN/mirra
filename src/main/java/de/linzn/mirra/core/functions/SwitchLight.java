@@ -6,6 +6,8 @@ import de.linzn.homeDevices.HomeDevicesPlugin;
 import de.linzn.homeDevices.devices.enums.MqttDeviceCategory;
 import de.linzn.homeDevices.devices.interfaces.MqttDevice;
 import de.linzn.homeDevices.devices.interfaces.MqttSwitch;
+import de.linzn.mirra.identitySystem.AiPermissions;
+import de.linzn.mirra.identitySystem.IdentityUser;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
@@ -15,19 +17,25 @@ import java.util.HashSet;
 
 public class SwitchLight implements IFunction {
     @Override
-    public JSONObject completeRequest(JSONObject input) {
+    public JSONObject completeRequest(JSONObject input, IdentityUser identityUser) {
         STEMSystemApp.LOGGER.CORE(input);
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("room", input.getString("room"));
-        MqttSwitch mqttSwitch = (MqttSwitch) HomeDevicesPlugin.homeDevicesPlugin.getDeviceManager().getMqttDevice(input.getString("room"));
 
-        if(mqttSwitch != null){
-            mqttSwitch.switchDevice(input.getBoolean("status"));
-            jsonObject.put("success", true);
-            jsonObject.put("reason", "light switched to new status");
+        if(identityUser.hasPermission(AiPermissions.CREATE_IMAGE)) {
+            MqttSwitch mqttSwitch = (MqttSwitch) HomeDevicesPlugin.homeDevicesPlugin.getDeviceManager().getMqttDevice(input.getString("room"));
+
+            if (mqttSwitch != null) {
+                mqttSwitch.switchDevice(input.getBoolean("status"));
+                jsonObject.put("success", true);
+                jsonObject.put("reason", "light switched to new status");
+            } else {
+                jsonObject.put("success", false);
+                jsonObject.put("reason", "Device with that name not found");
+            }
         } else {
             jsonObject.put("success", false);
-            jsonObject.put("reason", "Device not found!");
+            jsonObject.put("reason", "No permissions");
         }
         return jsonObject;
     }

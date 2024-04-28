@@ -3,18 +3,25 @@ package de.linzn.mirra.core.functions;
 import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
 import com.theokanning.openai.completion.chat.ChatFunctionProperty;
 import de.linzn.mirra.MirraPlugin;
+import de.linzn.mirra.identitySystem.AiPermissions;
+import de.linzn.mirra.identitySystem.IdentityUser;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
 public class CreateImage implements IFunction {
     @Override
-    public JSONObject completeRequest(JSONObject input) {
-        STEMSystemApp.LOGGER.CORE(input);
-        String url = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestImageCompletion(input.getString("imageDescription"));
+    public JSONObject completeRequest(JSONObject input, IdentityUser identityUser) {
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("success", true);
         jsonObject.put("imageDescription", input.getString("imageDescription"));
-        jsonObject.put("imageURL", url);
+        if(identityUser.hasPermission(AiPermissions.CREATE_IMAGE)){
+            STEMSystemApp.LOGGER.CORE(input);
+            String url = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestImageCompletion(input.getString("imageDescription"));
+            jsonObject.put("success", true);
+            jsonObject.put("imageURL", url);
+        } else {
+            jsonObject.put("success", false);
+            jsonObject.put("reason", "No permissions");
+        }
         return jsonObject;
     }
 
