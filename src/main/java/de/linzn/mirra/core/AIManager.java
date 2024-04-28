@@ -30,8 +30,8 @@ public class AIManager {
         this.registerStemAIEventService();
     }
 
-    private void registerStemAIEventService(){
-        if(this.functionProvider.hasFunction("trigger_event")) {
+    private void registerStemAIEventService() {
+        if (this.functionProvider.hasFunction("trigger_event")) {
             IFunction iFunction = this.functionProvider.getFunction("trigger_event");
             STEMSystemApp.getInstance().getInformationModule().registerAiTextEngine(event -> {
                 try {

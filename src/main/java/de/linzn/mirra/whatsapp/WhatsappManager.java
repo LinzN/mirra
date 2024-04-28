@@ -13,9 +13,9 @@ import java.util.concurrent.TimeUnit;
 
 public class WhatsappManager {
 
-    private Whatsapp whatsapp;
     public String defaultJID;
     public UUID sessionUUID;
+    private Whatsapp whatsapp;
 
 
     public WhatsappManager() {
@@ -24,7 +24,7 @@ public class WhatsappManager {
         MirraPlugin.mirraPlugin.getDefaultConfig().save();
         try {
             this.whatsapp = Whatsapp.webBuilder()
-                    .newConnection(sessionUUID)
+                    .lastConnection()
                     .unregistered(QrHandler.toTerminal())
                     .addLoggedInListener(new OnLoggedInListener())
                     .addDisconnectedListener(new OnDisconnectedListener())

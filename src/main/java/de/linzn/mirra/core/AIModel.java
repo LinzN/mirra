@@ -86,7 +86,9 @@ public class AIModel {
                 STEMSystemApp.LOGGER.CORE("Function call received");
                 if (MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().hasFunction(functionCall.getName())) {
                     IFunction function = MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().getFunction(functionCall.getName());
-                    JSONObject jsonObject = function.completeRequest(new JSONObject(functionCall.getArguments().toString()));
+                    JSONObject inputArguments = new JSONObject(functionCall.getArguments().toString());
+                    inputArguments.put("identity", identity);
+                    JSONObject jsonObject = function.completeRequest(inputArguments);
                     ChatMessage functionResponse = new ChatMessage(ChatMessageRole.FUNCTION.value(), jsonObject.toString(), functionCall.getName());
                     this.memorySerializerHashMap.get(identity).memorizeData(functionResponse);
                 }
