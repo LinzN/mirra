@@ -69,7 +69,7 @@
                         </goals>
 
                         <configuration>
-                            <outputDirectory>target/${project.name}/libraries</outputDirectory>
+                            <outputDirectory>target/libraries</outputDirectory>
                             <excludeScope>provided</excludeScope>
                         </configuration>
                     </execution>
