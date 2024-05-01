@@ -8,8 +8,17 @@ import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.core.functions.IFunction;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.stem.stemSystem.STEMSystemApp;
+import de.stem.stemSystem.modules.cloudModule.CloudFile;
 import org.json.JSONObject;
+import retrofit2.http.Url;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.*;
@@ -125,7 +134,25 @@ public class AIModel {
         StringBuilder url;
         try {
             List<Image> results = this.openAiService.createImage(imageRequest).getData();
-            url = new StringBuilder(results.get(0).getUrl());
+            URL openaiImageUrl = new URL(results.get(0).getUrl());
+
+            File tempDirectory = new File(MirraPlugin.mirraPlugin.getDataFolder(), "temp");
+            if(!tempDirectory.exists()){
+                tempDirectory.mkdir();
+            }
+
+            File tempFile = new File(tempDirectory, "picture.png");
+            InputStream in = openaiImageUrl.openStream();
+            Files.copy(in, Paths.get(tempFile.getPath()), StandardCopyOption.REPLACE_EXISTING);
+
+            CloudFile cloudFile = STEMSystemApp.getInstance().getCloudModule().uploadFileRandomName(tempFile, "/GeneratedImages/");
+            if(cloudFile != null){
+                String nextcloudURL = cloudFile.createPublicShareLink();
+                url = new StringBuilder(nextcloudURL);
+            } else {
+                throw new IllegalArgumentException("Error while uploading file to cloud!");
+            }
+
         } catch (Exception e) {
             STEMSystemApp.LOGGER.ERROR(e);
             url = new StringBuilder("An error was catch in kernel stacktrace! Please check STEM logs for more information!");

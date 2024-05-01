@@ -69,13 +69,8 @@
                         </goals>
 
                         <configuration>
-                            <outputDirectory>target/export-lib</outputDirectory>
-                            <excludeGroupIds>de.stem, de.stem.plugins, org.yaml, org.json, org.eclipse,
-                                org.xerial, org.slf4j, com.google.*, com.google, org.codehaus.mojo,
-                                org.checkerframework, mysql
-                            </excludeGroupIds>
-                            <excludeArtifactIds>openJL, simplyDatabase, simplyLogger, simplyConfiguration, stemLink
-                            </excludeArtifactIds>
+                            <outputDirectory>target/${project.name}/libraries</outputDirectory>
+                            <excludeScope>provided</excludeScope>
                         </configuration>
                     </execution>
                 </executions>
@@ -89,11 +84,13 @@
             <groupId>de.stem</groupId>
             <artifactId>stem-system</artifactId>
             <version>1.0.1-SNAPSHOT</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>de.stem.plugins</groupId>
             <artifactId>home-devices</artifactId>
             <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.theokanning.openai-gpt3-java</groupId>
@@ -107,11 +104,13 @@
             <groupId>com.github.auties00</groupId>
             <artifactId>cobalt</artifactId>
             <version>0.0.5</version>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>net.dv8tion</groupId>
             <artifactId>JDA</artifactId>
             <version>5.0.0-beta.22</version>
+            <scope>compile</scope>
             <exclusions>
                 <exclusion>
                     <groupId>club.minnced</groupId>

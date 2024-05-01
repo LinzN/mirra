@@ -23,7 +23,6 @@ import de.stem.stemSystem.modules.pluginModule.STEMPlugin;
 public class MirraPlugin extends STEMPlugin {
 
     public static MirraPlugin mirraPlugin;
-
     private IdentityManager identityManager;
     private WhatsappManager whatsappManager;
     private DiscordManager discordManager;
@@ -46,7 +45,6 @@ public class MirraPlugin extends STEMPlugin {
 
     @Override
     public void onDisable() {
-
     }
 
     public AIManager getAiManager() {
@@ -64,4 +62,5 @@ public class MirraPlugin extends STEMPlugin {
     public IdentityManager getIdentityManager() {
         return identityManager;
     }
+
 }
