@@ -3,6 +3,8 @@ package de.linzn.mirra.core;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.core.functions.FunctionProvider;
 import de.linzn.mirra.core.functions.IFunction;
+import de.linzn.mirra.identitySystem.TokenSource;
+import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
@@ -34,13 +36,15 @@ public class AIManager {
         if (this.functionProvider.hasFunction("trigger_event")) {
             IFunction iFunction = this.functionProvider.getFunction("trigger_event");
             STEMSystemApp.getInstance().getInformationModule().registerAiTextEngine(event -> {
+                UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken("stem_internal_handler", TokenSource.INTERNAL);
                 try {
                     JSONObject jsonObject = new JSONObject();
                     jsonObject.put("sender", MirraPlugin.mirraPlugin.getAiManager().getDefaultIdentityName());
                     jsonObject.put("event", event);
-                    jsonObject.put("source", "STEM_EVENT_HANDLER");
+                    jsonObject.put("outputLanguage", "German");
+                    jsonObject.put("source", userToken.getSource().name());
                     jsonObject.put("timestamp", new SimpleDateFormat("dd.MM.yyyy - HH:mm:ss").format(new Date()));
-                    return MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestStandaloneFunctionCall(iFunction.functionName(), jsonObject, "stem_internal_handler");
+                    return MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestStandaloneFunctionCall(iFunction.functionName(), jsonObject, userToken);
                 } catch (Exception e) {
                     STEMSystemApp.LOGGER.ERROR(e);
                     return event;

@@ -1,6 +1,8 @@
 package de.linzn.mirra.core.functions;
 
 import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
+import de.linzn.mirra.core.functions.memory.AccessLongTermMEMORY;
+import de.linzn.mirra.core.functions.memory.WriteLongTermMEMORY;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,6 +22,10 @@ public class FunctionProvider {
         this.registerFunction(new StatusLight());
         this.registerFunction(new CreateImage());
         this.registerFunction(new EventTrigger());
+        this.registerFunction(new ReminderTrigger());
+        this.registerFunction(new CreateReminder());
+        this.registerFunction(new AccessLongTermMEMORY());
+        this.registerFunction(new WriteLongTermMEMORY());
     }
 
 

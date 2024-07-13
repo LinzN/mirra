@@ -1,6 +1,10 @@
 package de.linzn.mirra.whatsapp.listener;
 
 import de.linzn.mirra.MirraPlugin;
+import de.linzn.mirra.identitySystem.IdentityGuest;
+import de.linzn.mirra.identitySystem.IdentityUser;
+import de.linzn.mirra.identitySystem.TokenSource;
+import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
 import it.auties.whatsapp.api.Whatsapp;
 import it.auties.whatsapp.listener.OnWhatsappNewMessage;
@@ -42,7 +46,8 @@ public class OnNewChatMessageListener implements OnWhatsappNewMessage {
                     content = info.message().textWithNoContextMessage().get();
                 }
             }
-            assignGPTModel(senderName, content, senderJid, messageType, whatsapp);
+            Jid jid = Jid.of(senderJid.toPhoneNumber());
+            assignGPTModel(senderName, content, jid, messageType, whatsapp);
         }
         whatsapp.changePresence(false);
     }
@@ -50,8 +55,13 @@ public class OnNewChatMessageListener implements OnWhatsappNewMessage {
     private void assignGPTModel(String sender, String content, Jid identifier, MessageType messageType, Whatsapp whatsapp) {
         STEMSystemApp.LOGGER.INFO("Receive Whatsapp input for AI model");
         if (messageType == MessageType.TEXT) {
-            List<String> input = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().buildMessageBlock(sender, content, "WHATSAPP");
-            String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, identifier.toString());
+            UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
+            IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
+            if (identityUser instanceof IdentityGuest) {
+                ((IdentityGuest) identityUser).setGuestName(sender);
+            }
+            List<String> input = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().buildMessageBlock(identityUser.getIdentityName(), content, userToken.getSource().name());
+            String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, userToken, sender);
             STEMSystemApp.LOGGER.INFO("Response fom AI model received.");
             STEMSystemApp.LOGGER.CORE(chatMessage);
             whatsapp.sendMessage(identifier, chatMessage.replace(".", ".\u00AD"));

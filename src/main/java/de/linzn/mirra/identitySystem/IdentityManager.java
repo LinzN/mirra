@@ -2,6 +2,7 @@ package de.linzn.mirra.identitySystem;
 
 import de.stem.stemSystem.STEMSystemApp;
 import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
+import net.dv8tion.jda.api.entities.User;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -12,13 +13,10 @@ import java.util.List;
 
 public class IdentityManager {
 
-    private final IdentityUser guestUser;
     private final List<IdentityUser> identities;
 
     public IdentityManager() {
         this.identities = new ArrayList<>();
-        this.guestUser = new IdentityUser("Guest");
-        this.guestUser.addPermission(AiPermissions.STATUS_STEM);
         this.loadIdentities();
     }
 
@@ -27,14 +25,18 @@ public class IdentityManager {
         this.identities.add(identityUser);
     }
 
-    public IdentityUser getIdentityUserByToken(String identityToken) {
-        IdentityUser user = this.guestUser;
+    public IdentityUser getIdentityUserByToken(UserToken userToken) {
+        IdentityUser user = null;
 
         for (IdentityUser identityUser : this.identities) {
-            if (identityUser.hasIdentityToken(identityToken)) {
+            if (identityUser.hasUserToken(userToken)) {
                 user = identityUser;
                 break;
             }
+        }
+        if (user == null) {
+            user = new IdentityGuest(userToken);
+
         }
         return user;
     }
@@ -57,8 +59,11 @@ public class IdentityManager {
                 Statement internalST = conn.createStatement();
                 ResultSet internalRS = internalST.executeQuery(internalQuery);
                 while (internalRS.next()) {
+                    int identity_id = internalRS.getInt("id");
                     String identity_token = internalRS.getString("identity_token");
-                    identityUser.addIdentityToken(identity_token);
+                    String tokenSource = internalRS.getString("token_source");
+                    UserToken userToken = new UserToken(identity_id, identity_token, TokenSource.valueOf(tokenSource));
+                    identityUser.assignUserToken(userToken);
                 }
                 internalQuery = "SELECT * FROM plugin_mirra_identity_user_permissions WHERE identity_user_id = '" + id + "' ";
                 internalST = conn.createStatement();
@@ -75,5 +80,20 @@ public class IdentityManager {
         } catch (SQLException e) {
             STEMSystemApp.LOGGER.ERROR(e);
         }
+    }
+
+    public UserToken getOrCreateUserToken(String name, TokenSource source) {
+        if(source == TokenSource.INTERNAL){
+            return new UserToken(-1, name, source);
+        }
+        for (IdentityUser identityUser : this.identities) {
+            for (UserToken userToken : identityUser.getUserTokens()) {
+                if (userToken.getName().equalsIgnoreCase(name) && userToken.getSource() == source) {
+                    return userToken;
+                }
+            }
+        }
+        //todo create objects in database and assign guest token
+        return null;
     }
 }

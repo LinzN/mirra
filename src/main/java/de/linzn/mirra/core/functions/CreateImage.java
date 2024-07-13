@@ -5,15 +5,16 @@ import com.theokanning.openai.completion.chat.ChatFunctionProperty;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
+import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
 public class CreateImage implements IFunction {
     @Override
-    public JSONObject completeRequest(JSONObject input, IdentityUser identityUser) {
+    public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("imageDescription", input.getString("imageDescription"));
-        if(identityUser.hasPermission(AiPermissions.CREATE_IMAGE)){
+        if (identityUser.hasPermission(AiPermissions.CREATE_IMAGE)) {
             STEMSystemApp.LOGGER.CORE(input);
             String url = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestImageCompletion(input.getString("imageDescription"));
             jsonObject.put("success", true);

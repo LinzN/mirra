@@ -8,6 +8,7 @@ import de.linzn.homeDevices.devices.interfaces.MqttDevice;
 import de.linzn.homeDevices.devices.interfaces.MqttSwitch;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
+import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
@@ -17,12 +18,12 @@ import java.util.HashSet;
 
 public class SwitchLight implements IFunction {
     @Override
-    public JSONObject completeRequest(JSONObject input, IdentityUser identityUser) {
+    public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         STEMSystemApp.LOGGER.CORE(input);
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("room", input.getString("room"));
 
-        if(identityUser.hasPermission(AiPermissions.SWITCH_LIGHT)) {
+        if (identityUser.hasPermission(AiPermissions.SWITCH_LIGHT)) {
             MqttSwitch mqttSwitch = (MqttSwitch) HomeDevicesPlugin.homeDevicesPlugin.getDeviceManager().getMqttDevice(input.getString("room"));
 
             if (mqttSwitch != null) {

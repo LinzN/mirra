@@ -9,6 +9,7 @@ import de.linzn.homeDevices.devices.interfaces.MqttDevice;
 import de.linzn.homeDevices.devices.interfaces.MqttSwitch;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
+import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
@@ -16,10 +17,10 @@ import java.util.Collection;
 
 public class StatusLight implements IFunction {
     @Override
-    public JSONObject completeRequest(JSONObject input, IdentityUser identityUser) {
+    public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         STEMSystemApp.LOGGER.CORE(input);
         JSONObject jsonObject = new JSONObject();
-        if(identityUser.hasPermission(AiPermissions.STATUS_LIGHT)) {
+        if (identityUser.hasPermission(AiPermissions.STATUS_LIGHT)) {
             jsonObject.put("success", true);
             Collection<MqttDevice> devices = HomeDevicesPlugin.homeDevicesPlugin.getDeviceManager().getAllDevices();
             for (MqttDevice device : devices) {
@@ -34,7 +35,7 @@ public class StatusLight implements IFunction {
                     }
                 }
             }
-        }else {
+        } else {
             jsonObject.put("success", false);
             jsonObject.put("reason", "No permissions");
         }

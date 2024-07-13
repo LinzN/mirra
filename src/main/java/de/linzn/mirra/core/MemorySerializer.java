@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.theokanning.openai.completion.chat.ChatFunctionCall;
 import com.theokanning.openai.completion.chat.ChatMessage;
+import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
 import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
 
@@ -13,13 +14,13 @@ import java.util.LinkedList;
 
 public class MemorySerializer {
 
-    private final String identity;
+    private final UserToken userToken;
     private final LinkedList<ChatMessage> dataMemory;
     private final AIModel aiModel;
 
-    public MemorySerializer(AIModel aiModel, String identity) {
+    public MemorySerializer(AIModel aiModel, UserToken userToken) {
         this.aiModel = aiModel;
-        this.identity = identity;
+        this.userToken = userToken;
         this.dataMemory = new LinkedList<>();
         this.remindFromDatabase();
     }
@@ -63,7 +64,7 @@ public class MemorySerializer {
                     + " VALUES (?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement preparedStmt = conn.prepareStatement(query);
             preparedStmt.setString(1, this.aiModel.getName());
-            preparedStmt.setString(2, identity);
+            preparedStmt.setString(2, this.userToken.getName());
             preparedStmt.setString(3, chatMessage.getRole());
             preparedStmt.setString(4, chatMessage.getContent());
             preparedStmt.setDate(5, date);
@@ -84,7 +85,7 @@ public class MemorySerializer {
         try {
             Connection conn = databaseModule.getConnection();
 
-            String query = "SELECT * FROM plugin_mirra_memory WHERE model = '" + this.aiModel.getName() + "' AND identity = '" + identity + "' ORDER BY id DESC LIMIT 50";
+            String query = "SELECT * FROM plugin_mirra_memory WHERE model = '" + this.aiModel.getName() + "' AND identity = '" + this.userToken.getName() + "' ORDER BY id DESC LIMIT 50";
             Statement st = conn.createStatement();
             ResultSet rs = st.executeQuery(query);
 
@@ -123,7 +124,7 @@ public class MemorySerializer {
         }
     }
 
-    public String getIdentity() {
-        return identity;
+    public UserToken getIdentity() {
+        return userToken;
     }
 }

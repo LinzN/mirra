@@ -2,10 +2,13 @@ package de.linzn.mirra.discord.listener;
 
 
 import de.linzn.mirra.MirraPlugin;
+import de.linzn.mirra.identitySystem.IdentityGuest;
+import de.linzn.mirra.identitySystem.IdentityUser;
+import de.linzn.mirra.identitySystem.TokenSource;
+import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
-import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
@@ -19,18 +22,23 @@ public class DiscordReceiveListener extends ListenerAdapter {
             if (event.getAuthor() != MirraPlugin.mirraPlugin.getDiscordManager().getJda().getSelfUser()) {
                 String inputData = event.getMessage().getContentDisplay();
                 User user = event.getAuthor();
-                this.assignGPTModel(user.getName(), inputData, event.getChannel());
+                this.assignGPTModel(user.getName(), inputData, user);
             }
         }
     }
 
-    private void assignGPTModel(String sender, String content, MessageChannel channel) {
+    private void assignGPTModel(String sender, String content, User user) {
         STEMSystemApp.LOGGER.INFO("Receive Discord input for AI model");
-        List<String> input = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().buildMessageBlock(sender, content, "DISCORD");
-        String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, channel.getId());
+        UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(user.getId(), TokenSource.DISCORD);
+        IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
+        if (identityUser instanceof IdentityGuest) {
+            ((IdentityGuest) identityUser).setGuestName(sender);
+        }
+        List<String> input = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().buildMessageBlock(identityUser.getIdentityName(), content, userToken.getSource().name());
+        String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, userToken, sender);
         STEMSystemApp.LOGGER.INFO("Response fom AI model received.");
         STEMSystemApp.LOGGER.CORE(chatMessage);
-        channel.sendMessage(chatMessage).complete();
+        MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(user.getId()).complete().openPrivateChannel().complete().sendMessage(chatMessage).complete();
     }
 
 }

@@ -6,7 +6,7 @@ import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
-public class EventTrigger implements IFunction {
+public class ReminderTrigger implements IFunction {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         STEMSystemApp.LOGGER.CORE("Tis is a standalone function. No external call allowed");
@@ -20,13 +20,13 @@ public class EventTrigger implements IFunction {
     public ChatFunctionDynamic getFunctionString() {
         return ChatFunctionDynamic.builder()
                 .name(this.functionName())
-                .description("Inform Niklas about a smart home event with a description coming in json format. Format Example {\"event\":\"door ring enabled\"}' to \"Hey Niklas, someone knocked at the door.\"")
+                .description("Trigger a reminder that was set before by the reminderTargetUsername")
                 .build();
     }
 
     @Override
     public String functionName() {
-        return "trigger_event";
+        return "trigger_reminder";
     }
 
 }

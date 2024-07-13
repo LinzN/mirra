@@ -8,12 +8,12 @@ import java.util.List;
 public class IdentityUser {
 
     private final String identityName;
-    private final List<String> identityTokens;
+    private final List<UserToken> userTokens;
     private final List<AiPermissions> aiPermissionsList;
 
     public IdentityUser(String identityName) {
         this.identityName = identityName;
-        this.identityTokens = new ArrayList<>();
+        this.userTokens = new ArrayList<>();
         this.aiPermissionsList = new ArrayList<>();
     }
 
@@ -26,16 +26,20 @@ public class IdentityUser {
         return this.aiPermissionsList.contains(aiPermissions);
     }
 
-    public boolean hasIdentityToken(String token) {
-        return this.identityTokens.contains(token);
+    public boolean hasUserToken(UserToken userToken) {
+        return this.userTokens.contains(userToken);
     }
 
-    public void addIdentityToken(String token) {
-        STEMSystemApp.LOGGER.CONFIG("ADD IdentityToken " + token + " to " + this.getIdentityName());
-        this.identityTokens.add(token);
+    public void assignUserToken(UserToken userToken) {
+        STEMSystemApp.LOGGER.CONFIG("ADD IdentityToken " + userToken.getName() + " to " + this.getIdentityName());
+        this.userTokens.add(userToken);
     }
 
     public String getIdentityName() {
         return identityName;
+    }
+
+    List<UserToken> getUserTokens() {
+        return this.userTokens;
     }
 }

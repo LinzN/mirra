@@ -13,8 +13,10 @@ package de.linzn.mirra;
 
 
 import de.linzn.mirra.core.AIManager;
+import de.linzn.mirra.core.reminder.ReminderEngine;
 import de.linzn.mirra.discord.DiscordManager;
 import de.linzn.mirra.identitySystem.IdentityManager;
+import de.linzn.mirra.listener.MirraReminderListener;
 import de.linzn.mirra.listener.StemEventListener;
 import de.linzn.mirra.whatsapp.WhatsappManager;
 import de.stem.stemSystem.STEMSystemApp;
@@ -27,6 +29,7 @@ public class MirraPlugin extends STEMPlugin {
     private WhatsappManager whatsappManager;
     private DiscordManager discordManager;
     private AIManager aiManager;
+    private ReminderEngine reminderEngine;
 
 
     public MirraPlugin() {
@@ -39,7 +42,9 @@ public class MirraPlugin extends STEMPlugin {
         this.identityManager = new IdentityManager();
         this.whatsappManager = new WhatsappManager();
         this.discordManager = new DiscordManager();
+        this.reminderEngine = new ReminderEngine();
         STEMSystemApp.getInstance().getEventModule().getStemEventBus().register(new StemEventListener());
+        STEMSystemApp.getInstance().getEventModule().getStemEventBus().register(new MirraReminderListener());
     }
 
 
@@ -63,4 +68,7 @@ public class MirraPlugin extends STEMPlugin {
         return identityManager;
     }
 
+    public ReminderEngine getReminderEngine() {
+        return reminderEngine;
+    }
 }
