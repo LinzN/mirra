@@ -23,7 +23,6 @@ public class DiscordManager {
             jdaBuilder.enableIntents(GatewayIntent.MESSAGE_CONTENT);
             jdaBuilder.addEventListeners(new DiscordReceiveListener());
             jda = jdaBuilder.build();
-            ;
             try {
                 jda.awaitReady();
                 STEMSystemApp.LOGGER.CORE("Login Discord API success!");
