@@ -26,9 +26,9 @@ public class WhatsappManager {
             this.whatsapp = Whatsapp.webBuilder()
                     .lastConnection()
                     .unregistered(QrHandler.toTerminal())
-                    .addLoggedInListener(new OnLoggedInListener())
-                    .addDisconnectedListener(new OnDisconnectedListener())
-                    .addNewChatMessageListener(new OnNewChatMessageListener())
+                    .addListener(new OnLoggedInListener())
+                    .addListener(new OnDisconnectedListener())
+                    .addListener(new OnNewChatMessageListener())
                     .connect()
                     .join();
 

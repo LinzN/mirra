@@ -103,7 +103,7 @@
         <dependency>
             <groupId>com.github.auties00</groupId>
             <artifactId>cobalt</artifactId>
-            <version>0.0.5</version>
+            <version>0.0.6</version>
             <scope>compile</scope>
         </dependency>
         <dependency>

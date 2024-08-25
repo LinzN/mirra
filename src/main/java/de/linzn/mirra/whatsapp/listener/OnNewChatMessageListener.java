@@ -7,7 +7,8 @@ import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
 import it.auties.whatsapp.api.Whatsapp;
-import it.auties.whatsapp.listener.OnWhatsappNewMessage;
+import it.auties.whatsapp.listener.Listener;
+
 import it.auties.whatsapp.model.contact.Contact;
 import it.auties.whatsapp.model.info.MessageInfo;
 import it.auties.whatsapp.model.jid.Jid;
@@ -16,7 +17,7 @@ import org.json.JSONObject;
 
 import java.util.List;
 
-public class OnNewChatMessageListener implements OnWhatsappNewMessage {
+public class OnNewChatMessageListener implements Listener {
 
 
     @Override

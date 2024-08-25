@@ -2,9 +2,9 @@ package de.linzn.mirra.whatsapp.listener;
 
 import de.stem.stemSystem.STEMSystemApp;
 import it.auties.whatsapp.api.DisconnectReason;
-import it.auties.whatsapp.listener.OnDisconnected;
+import it.auties.whatsapp.listener.Listener;
 
-public class OnDisconnectedListener implements OnDisconnected {
+public class OnDisconnectedListener implements Listener {
 
     @Override
     public void onDisconnected(DisconnectReason reason) {
