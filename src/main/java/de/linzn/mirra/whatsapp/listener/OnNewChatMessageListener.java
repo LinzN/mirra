@@ -13,6 +13,7 @@ import it.auties.whatsapp.model.contact.Contact;
 import it.auties.whatsapp.model.info.MessageInfo;
 import it.auties.whatsapp.model.jid.Jid;
 import it.auties.whatsapp.model.message.model.MessageType;
+import it.auties.whatsapp.model.message.standard.TextMessageBuilder;
 import org.json.JSONObject;
 
 import java.util.List;
