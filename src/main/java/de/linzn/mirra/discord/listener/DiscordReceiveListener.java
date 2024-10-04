@@ -38,7 +38,28 @@ public class DiscordReceiveListener extends ListenerAdapter {
         String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, userToken, sender);
         STEMSystemApp.LOGGER.INFO("Response fom AI model received.");
         STEMSystemApp.LOGGER.CORE(chatMessage);
-        MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(user.getId()).complete().openPrivateChannel().complete().sendMessage(chatMessage).complete();
-    }
+        //MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(user.getId()).complete().openPrivateChannel().complete().sendMessage(chatMessage).complete();
 
+        int maxLength = 1900;
+        if (chatMessage.length() > maxLength) {
+            int start = 0;
+            int end = maxLength;
+
+            while (start < chatMessage.length()) {
+
+                if (end > chatMessage.length()) {
+                    end = chatMessage.length();
+                }
+
+                String part = chatMessage.substring(start, end);
+                MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(user.getId()).complete()
+                        .openPrivateChannel().complete().sendMessage(part).complete();
+                start = end;
+                end = start + maxLength;
+            }
+        } else {
+            MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(user.getId()).complete()
+                    .openPrivateChannel().complete().sendMessage(chatMessage).complete();
+        }
+    }
 }
