@@ -93,6 +93,18 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>de.stem.plugins</groupId>
+            <artifactId>gas-station</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>de.stem.plugins</groupId>
+            <artifactId>weather</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>com.theokanning.openai-gpt3-java</groupId>
             <artifactId>service</artifactId>
             <version>0.18.2</version>

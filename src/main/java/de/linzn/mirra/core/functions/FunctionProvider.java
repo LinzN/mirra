@@ -26,6 +26,7 @@ public class FunctionProvider {
         this.registerFunction(new CreateReminder());
         this.registerFunction(new AccessLongTermMEMORY());
         this.registerFunction(new WriteLongTermMEMORY());
+        this.registerFunction(new Weather());
     }
 
 
