@@ -1,11 +1,12 @@
 package de.linzn.mirra.core.functions.memory;
 
-import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
-import com.theokanning.openai.completion.chat.ChatFunctionProperty;
-import de.linzn.mirra.core.functions.IFunction;
+import com.azure.ai.openai.models.FunctionDefinition;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
+import de.linzn.mirra.openai.IFunctionCall;
+import de.linzn.mirra.openai.models.FunctionParameters;
+import de.linzn.mirra.openai.models.FunctionProperties;
 import de.stem.stemSystem.STEMSystemApp;
 import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
 import org.json.JSONArray;
@@ -17,7 +18,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Date;
 
-public class AccessLongTermMEMORY implements IFunction {
+public class AccessLongTermMEMORY implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         STEMSystemApp.LOGGER.CORE(input);
@@ -34,22 +35,21 @@ public class AccessLongTermMEMORY implements IFunction {
     }
 
     @Override
-    public ChatFunctionDynamic getFunctionString() {
-        return ChatFunctionDynamic.builder()
-                .name(this.functionName())
-                .description("Search useful information from long term memory. Use this ALWAYS if you don't know a question. Example: If you don't know the birth date of niklas use Example [\"Niklas\", \"Birthday\"]")
-                .addProperty(ChatFunctionProperty.builder()
-                        .name("keywordArray_english")
-                        .type("array")
-                        .description("Some keywords written ALWAYS IN ENGLISH as array like affected person and the event for the request to search in database. Example [\"Niklas\", \"Birthday\"]")
-                        .items(ChatFunctionProperty.builder()
-                                .type("string")
-                                .name("keyword")
-                                .description("Keyword to search in database in english")
-                                .build())
-                        .required(true)
-                        .build())
-                .build();
+    public FunctionDefinition getFunctionString() {
+        return new FunctionDefinition(this.functionName())
+                .setDescription("Search useful information from long term memory. Use this ALWAYS if you don't know a question. Example: If you don't know the birth date of niklas use Example [\"Niklas\", \"Birthday\"]")
+                .setParameters(new FunctionParameters()
+                        .setType("object")
+                        .addProperty(new FunctionProperties()
+                                .setName("keywordArray_english")
+                                .setType("array")
+                                .setDescription("Some keywords written ALWAYS IN ENGLISH as array like affected person and the event for the request to search in database. Example [\"Niklas\", \"Birthday\"]")
+                                .setItems(new FunctionProperties()
+                                        .setType("string")
+                                        .setName("keyword")
+                                        .setDescription("Keyword to search in database in english"))
+                                .setRequired(true))
+                        .build());
     }
 
     @Override

@@ -2,9 +2,9 @@ package de.linzn.mirra.core;
 
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.core.functions.FunctionProvider;
-import de.linzn.mirra.core.functions.IFunction;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
+import de.linzn.mirra.openai.IFunctionCall;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
@@ -28,13 +28,13 @@ public class AIManager {
         this.defaultIdentityName = MirraPlugin.mirraPlugin.getDefaultConfig().getString("default.identityName", "Niklas");
         this.openAIToken = MirraPlugin.mirraPlugin.getDefaultConfig().getString("openAI.token", "xxxx");
         MirraPlugin.mirraPlugin.getDefaultConfig().save();
-        this.models.put(this.defaultModelName, new AIModel(this.defaultModelName, this.openAIToken));
+        this.models.put(this.defaultModelName, new AIModel(this.defaultModelName, this.openAIToken, this));
         this.registerStemAIEventService();
     }
 
     private void registerStemAIEventService() {
         if (this.functionProvider.hasFunction("trigger_event")) {
-            IFunction iFunction = this.functionProvider.getFunction("trigger_event");
+            IFunctionCall iFunction = this.functionProvider.getFunction("trigger_event");
             STEMSystemApp.getInstance().getInformationModule().registerAiTextEngine(event -> {
                 UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken("stem_internal_handler", TokenSource.INTERNAL);
                 try {

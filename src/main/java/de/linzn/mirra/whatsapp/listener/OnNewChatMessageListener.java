@@ -1,23 +1,17 @@
 package de.linzn.mirra.whatsapp.listener;
 
-import com.mysql.cj.MessageBuilder;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.identitySystem.IdentityGuest;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
-import it.auties.whatsapp.api.TextPreviewSetting;
-import it.auties.whatsapp.api.TextPreviewSettingSpec;
 import it.auties.whatsapp.api.Whatsapp;
 import it.auties.whatsapp.listener.Listener;
-
 import it.auties.whatsapp.model.contact.Contact;
 import it.auties.whatsapp.model.info.MessageInfo;
 import it.auties.whatsapp.model.jid.Jid;
-import it.auties.whatsapp.model.message.model.Message;
 import it.auties.whatsapp.model.message.model.MessageType;
-import it.auties.whatsapp.model.message.standard.TextMessage;
 import it.auties.whatsapp.model.message.standard.TextMessageBuilder;
 import org.json.JSONObject;
 

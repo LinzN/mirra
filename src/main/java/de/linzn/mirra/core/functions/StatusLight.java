@@ -1,6 +1,6 @@
 package de.linzn.mirra.core.functions;
 
-import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
+import com.azure.ai.openai.models.FunctionDefinition;
 import de.linzn.homeDevices.HomeDevicesPlugin;
 import de.linzn.homeDevices.devices.enums.MqttDeviceCategory;
 import de.linzn.homeDevices.devices.enums.SwitchCategory;
@@ -10,12 +10,14 @@ import de.linzn.homeDevices.devices.interfaces.MqttSwitch;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
+import de.linzn.mirra.openai.IFunctionCall;
+import de.linzn.mirra.openai.models.FunctionParameters;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
 import java.util.Collection;
 
-public class StatusLight implements IFunction {
+public class StatusLight implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         STEMSystemApp.LOGGER.CORE(input);
@@ -43,11 +45,12 @@ public class StatusLight implements IFunction {
     }
 
     @Override
-    public ChatFunctionDynamic getFunctionString() {
-        return ChatFunctionDynamic.builder()
-                .name(this.functionName())
-                .description("Get the information about the light status of all rooms. True = ON False = OFF")
-                .build();
+    public FunctionDefinition getFunctionString() {
+        return new FunctionDefinition(this.functionName())
+                .setDescription("Get the information about the light status of all rooms. True = ON False = OFF")
+                .setParameters(new FunctionParameters()
+                        .setType("object")
+                        .build());
     }
 
     @Override

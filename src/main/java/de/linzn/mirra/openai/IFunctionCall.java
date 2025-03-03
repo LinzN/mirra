@@ -1,15 +1,15 @@
-package de.linzn.mirra.core.functions;
+package de.linzn.mirra.openai;
 
-import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
+import com.azure.ai.openai.models.FunctionDefinition;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
 import org.json.JSONObject;
 
-public interface IFunction {
+public interface IFunctionCall {
 
     JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken);
 
-    ChatFunctionDynamic getFunctionString();
+    FunctionDefinition getFunctionString();
 
     String functionName();
 }

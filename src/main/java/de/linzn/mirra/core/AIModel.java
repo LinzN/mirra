@@ -1,14 +1,15 @@
 package de.linzn.mirra.core;
 
-import com.theokanning.openai.completion.chat.*;
-import com.theokanning.openai.image.CreateImageRequest;
-import com.theokanning.openai.image.Image;
-import com.theokanning.openai.service.OpenAiService;
+import com.azure.ai.openai.OpenAIClient;
+import com.azure.ai.openai.OpenAIClientBuilder;
+import com.azure.ai.openai.models.*;
+import com.azure.core.credential.KeyCredential;
 import de.linzn.mirra.MirraPlugin;
-import de.linzn.mirra.core.functions.IFunction;
 import de.linzn.mirra.identitySystem.IdentityGuest;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
+import de.linzn.mirra.openai.ChatMessage;
+import de.linzn.mirra.openai.IFunctionCall;
 import de.stem.stemSystem.STEMSystemApp;
 import de.stem.stemSystem.modules.cloudModule.CloudFile;
 import org.json.JSONObject;
@@ -20,7 +21,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
-import java.time.Duration;
 import java.util.*;
 
 public class AIModel {
@@ -28,26 +28,27 @@ public class AIModel {
     private final String textOpenAIModel;
     private final String imageOpenAIModel;
     private final String aiRoleDescription;
-    private final OpenAiService openAiService;
+    private final OpenAIClient openAiService;
+    private final AIManager aiManager;
     private final HashMap<String, MemorySerializer> memorySerializerHashMap;
 
 
-    public AIModel(String name, String openAIToken) {
+    public AIModel(String name, String openAIToken, AIManager aiManager) {
         this.name = name;
         this.textOpenAIModel = MirraPlugin.mirraPlugin.getDefaultConfig().getString("model." + name + ".textOpenAIModel", "test123");
         this.imageOpenAIModel = MirraPlugin.mirraPlugin.getDefaultConfig().getString("model." + name + ".imageOpenAIModel", "test123");
         this.aiRoleDescription = MirraPlugin.mirraPlugin.getDefaultConfig().getString("model." + name + ".aiRoleDescription", "You are an assistant");
         MirraPlugin.mirraPlugin.getDefaultConfig().save();
         this.memorySerializerHashMap = new HashMap<>();
-        this.openAiService = new OpenAiService(openAIToken, Duration.ofMinutes(2));
+        this.aiManager = aiManager;
+        this.openAiService = new OpenAIClientBuilder()
+                .credential(new KeyCredential(openAIToken))
+                .buildClient();
     }
 
 
     public ChatMessage getAiRoleDescription() {
-        ChatMessage chatMessage = new ChatMessage();
-        chatMessage.setRole("system");
-        chatMessage.setContent(this.aiRoleDescription);
-        return chatMessage;
+        return new ChatMessage(this.aiRoleDescription, ChatRole.SYSTEM);
     }
 
     public String getName() {
@@ -73,70 +74,80 @@ public class AIModel {
         }
 
         for (String input : inputData) {
-            ChatMessage chatMessage = new ChatMessage();
-            chatMessage.setRole("user");
-            chatMessage.setContent(input);
+            ChatMessage chatMessage = new ChatMessage(input, ChatRole.USER);
             this.memorySerializerHashMap.get(userToken.getName()).memorizeData(chatMessage);
         }
 
         LinkedList<ChatMessage> dataToSend = this.memorySerializerHashMap.get(userToken.getName()).accessMemory();
         dataToSend.addFirst(this.getAiRoleDescription());
-        ChatCompletionRequest completionRequest = ChatCompletionRequest.builder()
-                .messages(dataToSend)
-                .model(this.textOpenAIModel)
-                .functions(MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().buildChatFunctionProvider())
-                .functionCall(ChatCompletionRequest.ChatCompletionRequestFunctionCall.of("auto"))
-                .n(1)
-                .user("STEM-SYSTEM")
-                .build();
+
+        ChatCompletionsOptions options = new ChatCompletionsOptions(ChatMessage.convertToRequestMessage(dataToSend));
+        options.setN(1);
+        options.setUser("STEM-SYSTEM");
+        options.setModel(this.textOpenAIModel);
+        options.setFunctionCall(FunctionCallConfig.AUTO);
+        options.setFunctions(this.aiManager.getFunctionProvider().buildChatFunctionProvider());
 
         ChatMessage result;
         try {
-            List<ChatCompletionChoice> results = this.openAiService.createChatCompletion(completionRequest).getChoices();
-            result = results.get(0).getMessage();
+            ChatCompletions chatCompletions = this.openAiService.getChatCompletions(this.textOpenAIModel, options);
+            ChatChoice choice = chatCompletions.getChoices().get(0);
+            result = ChatMessage.buildsFrom(choice.getMessage());
+
             this.memorySerializerHashMap.get(userToken.getName()).memorizeData(result);
 
-            ChatFunctionCall functionCall = result.getFunctionCall();
-            while (functionCall != null) {
+            while (result.hasFunctionCall()) {
                 STEMSystemApp.LOGGER.CORE("Function call received");
-                if (MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().hasFunction(functionCall.getName())) {
-                    IFunction function = MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().getFunction(functionCall.getName());
-                    JSONObject inputArguments = new JSONObject(functionCall.getArguments().toString());
+
+                if (this.aiManager.getFunctionProvider().hasFunction(result.getFunctionCall().getName())) {
+                    IFunctionCall function = this.aiManager.getFunctionProvider().getFunction(result.getFunctionCall().getName());
+                    JSONObject inputArguments = new JSONObject(result.getFunctionCall().getArguments());
                     JSONObject jsonObject = function.completeRequest(inputArguments, identityUser, userToken);
-                    ChatMessage functionResponse = new ChatMessage(ChatMessageRole.FUNCTION.value(), jsonObject.toString(), functionCall.getName());
+                    ChatMessage functionResponse = new ChatMessage(new ChatRequestFunctionMessage(result.getFunctionCall().getName(), jsonObject.toString()));
                     this.memorySerializerHashMap.get(userToken.getName()).memorizeData(functionResponse);
+                } else {
+                    ChatMessage functionNotFoundResponse = new ChatMessage(new ChatRequestFunctionMessage(result.getFunctionCall().getName(), this.aiManager.getFunctionProvider().functionNotFound().toString()));
+                    this.memorySerializerHashMap.get(userToken.getName()).memorizeData(functionNotFoundResponse);
                 }
+
                 /* Resend the data again to the model with the function data */
                 dataToSend = this.memorySerializerHashMap.get(userToken.getName()).accessMemory();
                 dataToSend.addFirst(this.getAiRoleDescription());
-                completionRequest.setMessages(dataToSend);
 
-                results = this.openAiService.createChatCompletion(completionRequest).getChoices();
-                result = results.get(0).getMessage();
-                functionCall = result.getFunctionCall();
+                options = new ChatCompletionsOptions(ChatMessage.convertToRequestMessage(dataToSend));
+                options.setN(1);
+                options.setUser("STEM-SYSTEM");
+                options.setModel(this.textOpenAIModel);
+                options.setFunctionCall(FunctionCallConfig.AUTO);
+                options.setFunctions(this.aiManager.getFunctionProvider().buildChatFunctionProvider());
+
+                chatCompletions = this.openAiService.getChatCompletions(this.textOpenAIModel, options);
+                choice = chatCompletions.getChoices().get(0);
+                result = ChatMessage.buildsFrom(choice.getMessage());
+
                 STEMSystemApp.LOGGER.CORE("Function call finished");
                 this.memorySerializerHashMap.get(userToken.getName()).memorizeData(result);
+
             }
         } catch (Exception e) {
             STEMSystemApp.LOGGER.ERROR(e);
-            ChatMessage chatMessage = new ChatMessage();
-            chatMessage.setContent("An error was catch in kernel stacktrace! Please check STEM logs for more information! \n" + e.getMessage());
-            result = chatMessage;
+            result = new ChatMessage("An error was catch in kernel stacktrace! Please check STEM logs for more information! \n" + e.getMessage(), ChatRole.ASSISTANT);
         }
 
         return result.getContent();
     }
 
     public String requestImageCompletion(String prompt) {
-        CreateImageRequest imageRequest = CreateImageRequest.builder()
-                .prompt(prompt)
-                .model(this.imageOpenAIModel)
-                .n(1)
-                .user("STEM-SYSTEM")
-                .build();
+        ImageGenerationOptions options = new ImageGenerationOptions(prompt);
+        options.setN(1);
+        options.setModel(this.imageOpenAIModel);
+        options.setUser("STEM-SYSTEM");
+
         StringBuilder url;
         try {
-            List<Image> results = this.openAiService.createImage(imageRequest).getData();
+            ImageGenerations imageGenerations = this.openAiService.getImageGenerations(this.imageOpenAIModel, options);
+
+            List<ImageGenerationData> results = imageGenerations.getData();
             URL openaiImageUrl = new URL(results.get(0).getUrl());
 
             File tempDirectory = new File(MirraPlugin.mirraPlugin.getDataFolder(), "temp");
@@ -171,36 +182,68 @@ public class AIModel {
         ChatMessage result;
         LinkedList<ChatMessage> dataToSend = new LinkedList<>();
         try {
-            if (MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().hasFunction(functionName)) {
-                IFunction function = MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().getFunction(functionName);
-                ChatMessage functionResponse = new ChatMessage(ChatMessageRole.FUNCTION.value(), jsonObject.toString(), function.functionName());
+            if (this.aiManager.getFunctionProvider().hasFunction(functionName)) {
+                STEMSystemApp.LOGGER.CORE("Standalone function call started");
+                IFunctionCall function = this.aiManager.getFunctionProvider().getFunction(functionName);
+                ChatRequestFunctionMessage chatRequestFunctionMessage = new ChatRequestFunctionMessage(function.functionName(), jsonObject.toString());
+                ChatMessage functionResponse = new ChatMessage(chatRequestFunctionMessage);
                 dataToSend.add(functionResponse);
 
                 this.memorySerializerHashMap.get(userToken.getName()).memorizeData(functionResponse);
 
                 dataToSend.addFirst(this.getAiRoleDescription());
-                ChatCompletionRequest completionRequest = ChatCompletionRequest.builder()
-                        .messages(dataToSend)
-                        .model(this.textOpenAIModel)
-                        .functions(MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().buildChatFunctionProvider())
-                        .functionCall(ChatCompletionRequest.ChatCompletionRequestFunctionCall.of("auto"))
-                        .n(1)
-                        .user("STEM-SYSTEM")
-                        .build();
+                ChatCompletionsOptions options = new ChatCompletionsOptions(ChatMessage.convertToRequestMessage(dataToSend));
+                options.setN(1);
+                options.setUser("STEM-SYSTEM");
+                options.setModel(this.textOpenAIModel);
+                options.setFunctionCall(FunctionCallConfig.AUTO);
+                options.setFunctions(this.aiManager.getFunctionProvider().buildChatFunctionProvider());
 
-                List<ChatCompletionChoice> results = this.openAiService.createChatCompletion(completionRequest).getChoices();
-                result = results.get(0).getMessage();
+
+                ChatCompletions chatCompletions = this.openAiService.getChatCompletions(this.textOpenAIModel, options);
+                ChatChoice choice = chatCompletions.getChoices().get(0);
+                result = ChatMessage.buildsFrom(choice.getMessage());
+
+                while (result.hasFunctionCall()) {
+                    STEMSystemApp.LOGGER.CORE("Manual function call received");
+                    if (this.aiManager.getFunctionProvider().hasFunction(result.getFunctionCall().getName())) {
+                        IFunctionCall requestFunction = this.aiManager.getFunctionProvider().getFunction(result.getFunctionCall().getName());
+                        JSONObject requestInputArguments = new JSONObject(result.getFunctionCall().getArguments());
+                        JSONObject requestJsonObject = requestFunction.completeRequest(requestInputArguments, null, userToken);
+                        ChatMessage requestFunctionResponse = new ChatMessage(new ChatRequestFunctionMessage(result.getFunctionCall().getName(), requestJsonObject.toString()));
+                        this.memorySerializerHashMap.get(userToken.getName()).memorizeData(requestFunctionResponse);
+                    } else {
+                        ChatMessage functionNotFoundResponse = new ChatMessage(new ChatRequestFunctionMessage(result.getFunctionCall().getName(), this.aiManager.getFunctionProvider().functionNotFound().toString()));
+                        this.memorySerializerHashMap.get(userToken.getName()).memorizeData(functionNotFoundResponse);
+                    }
+
+                    /* Resend the data again to the model with the function data */
+                    dataToSend = this.memorySerializerHashMap.get(userToken.getName()).accessMemory();
+                    dataToSend.addFirst(this.getAiRoleDescription());
+
+                    options = new ChatCompletionsOptions(ChatMessage.convertToRequestMessage(dataToSend));
+                    options.setN(1);
+                    options.setUser("STEM-SYSTEM");
+                    options.setModel(this.textOpenAIModel);
+                    options.setFunctionCall(FunctionCallConfig.AUTO);
+                    options.setFunctions(this.aiManager.getFunctionProvider().buildChatFunctionProvider());
+
+                    chatCompletions = this.openAiService.getChatCompletions(this.textOpenAIModel, options);
+                    choice = chatCompletions.getChoices().get(0);
+                    result = ChatMessage.buildsFrom(choice.getMessage());
+
+                    STEMSystemApp.LOGGER.CORE("Manual function call finished");
+                }
+
+
                 this.memorySerializerHashMap.get(userToken.getName()).memorizeData(result);
+                STEMSystemApp.LOGGER.CORE("Standalone function call finished");
             } else {
-                ChatMessage chatMessage = new ChatMessage();
-                chatMessage.setContent("No function found with this name!");
-                result = chatMessage;
+                result = new ChatMessage("No function found with this name!", ChatRole.ASSISTANT);
             }
         } catch (Exception e) {
             STEMSystemApp.LOGGER.ERROR(e);
-            ChatMessage chatMessage = new ChatMessage();
-            chatMessage.setContent("An error was catch in kernel stacktrace! Please check STEM logs for more information! \n" + e.getMessage());
-            result = chatMessage;
+            result = new ChatMessage("An error was catch in kernel stacktrace! Please check STEM logs for more information! \n" + e.getMessage(), ChatRole.ASSISTANT);
         }
         return result.getContent();
     }

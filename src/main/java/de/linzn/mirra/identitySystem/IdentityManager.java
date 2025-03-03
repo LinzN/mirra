@@ -2,7 +2,6 @@ package de.linzn.mirra.identitySystem;
 
 import de.stem.stemSystem.STEMSystemApp;
 import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
-import net.dv8tion.jda.api.entities.User;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -83,7 +82,7 @@ public class IdentityManager {
     }
 
     public UserToken getOrCreateUserToken(String name, TokenSource source) {
-        if(source == TokenSource.INTERNAL){
+        if (source == TokenSource.INTERNAL) {
             return new UserToken(-1, name, source);
         }
         for (IdentityUser identityUser : this.identities) {

@@ -1,16 +1,18 @@
 package de.linzn.mirra.core.functions;
 
-import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
+import com.azure.ai.openai.models.FunctionDefinition;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
+import de.linzn.mirra.openai.IFunctionCall;
+import de.linzn.mirra.openai.models.FunctionParameters;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
-public class StemStatus implements IFunction {
+public class StemStatus implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         JSONObject jsonObject = new JSONObject();
@@ -30,11 +32,12 @@ public class StemStatus implements IFunction {
     }
 
     @Override
-    public ChatFunctionDynamic getFunctionString() {
-        return ChatFunctionDynamic.builder()
-                .name(this.functionName())
-                .description("Get the system status of the STEM Smarthome Framework like uptime and other stats")
-                .build();
+    public FunctionDefinition getFunctionString() {
+        return new FunctionDefinition(this.functionName())
+                .setDescription("Get the system status of the STEM smart-home Framework like uptime and other stats")
+                .setParameters(new FunctionParameters()
+                        .setType("object")
+                        .build());
     }
 
     @Override

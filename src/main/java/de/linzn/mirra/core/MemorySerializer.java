@@ -1,13 +1,16 @@
 package de.linzn.mirra.core;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.theokanning.openai.completion.chat.ChatFunctionCall;
-import com.theokanning.openai.completion.chat.ChatMessage;
+import com.azure.ai.openai.models.ChatRequestAssistantMessage;
+import com.azure.ai.openai.models.ChatRequestFunctionMessage;
+import com.azure.ai.openai.models.ChatRole;
+import com.azure.ai.openai.models.FunctionCall;
+import com.azure.json.JsonProviders;
 import de.linzn.mirra.identitySystem.UserToken;
+import de.linzn.mirra.openai.ChatMessage;
 import de.stem.stemSystem.STEMSystemApp;
 import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
 
+import java.io.IOException;
 import java.sql.*;
 import java.util.Date;
 import java.util.LinkedList;
@@ -46,30 +49,33 @@ public class MemorySerializer {
         DatabaseModule databaseModule = STEMSystemApp.getInstance().getDatabaseModule();
 
         String functionName = null;
-        String functionArguments = null;
+        String functionJson = null;
 
         if (chatMessage.getFunctionCall() != null) {
             functionName = chatMessage.getFunctionCall().getName();
             if (chatMessage.getFunctionCall().getArguments() != null) {
-                functionArguments = chatMessage.getFunctionCall().getArguments().toString();
+                try {
+                    functionJson = chatMessage.getFunctionCall().toJsonString();
+                } catch (IOException ignored) {
+                }
             }
-        } else if (chatMessage.getRole().equalsIgnoreCase("function")) {
-            functionName = chatMessage.getName();
+        } else if (chatMessage.getRole() == ChatRole.FUNCTION) {
+            functionName = ((ChatRequestFunctionMessage) chatMessage.convertToRequestMessage()).getName();
         }
 
         try {
             Connection conn = databaseModule.getConnection();
 
-            String query = " INSERT INTO plugin_mirra_memory (model, identity, role, content, date, function_name, function_arguments)"
+            String query = " INSERT INTO plugin_mirra_memory (model, identity, role, content, date, function_name, function_json)"
                     + " VALUES (?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement preparedStmt = conn.prepareStatement(query);
             preparedStmt.setString(1, this.aiModel.getName());
             preparedStmt.setString(2, this.userToken.getName());
-            preparedStmt.setString(3, chatMessage.getRole());
+            preparedStmt.setString(3, chatMessage.getRole().getValue());
             preparedStmt.setString(4, chatMessage.getContent());
             preparedStmt.setDate(5, date);
             preparedStmt.setString(6, functionName);
-            preparedStmt.setString(7, functionArguments);
+            preparedStmt.setString(7, functionJson);
             preparedStmt.execute();
 
             databaseModule.releaseConnection(conn);
@@ -94,24 +100,25 @@ public class MemorySerializer {
                 String role = rs.getString("role");
                 String content = rs.getString("content");
                 String functionName = rs.getString("function_name");
-                String functionArguments = rs.getString("function_arguments");
+                String functionJson = rs.getString("function_json");
 
-                ChatMessage chatMessage = new ChatMessage();
-                chatMessage.setRole(role);
-                chatMessage.setContent(content);
+                ChatMessage chatMessage = new ChatMessage(content, ChatRole.fromString(role));
 
                 if (functionName != null) {
-                    if (chatMessage.getRole().equalsIgnoreCase("function")) {
-                        chatMessage.setName(functionName);
+
+                    if (chatMessage.getRole() == ChatRole.FUNCTION) {
+                        chatMessage = new ChatMessage(new ChatRequestFunctionMessage(functionName, content));
                     } else {
-                        ChatFunctionCall chatFunctionCall = new ChatFunctionCall();
-                        chatFunctionCall.setName(functionName);
-                        try {
-                            chatFunctionCall.setArguments(new ObjectMapper().readTree(functionArguments));
-                        } catch (JsonProcessingException e) {
-                            STEMSystemApp.LOGGER.ERROR(e);
+                        ChatRequestAssistantMessage chatRequestAssistantMessage = new ChatRequestAssistantMessage("");
+                        if (functionJson != null) {
+                            try {
+                                FunctionCall functionCall = FunctionCall.fromJson(JsonProviders.createReader(functionJson));
+                                chatRequestAssistantMessage.setFunctionCall(functionCall);
+                            } catch (IOException ignored) {
+                                STEMSystemApp.LOGGER.WARNING("Not possible to convert functionCall");
+                            }
                         }
-                        chatMessage.setFunctionCall(chatFunctionCall);
+                        chatMessage = new ChatMessage(chatRequestAssistantMessage);
                     }
                 }
 

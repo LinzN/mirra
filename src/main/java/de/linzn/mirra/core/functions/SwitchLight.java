@@ -1,7 +1,6 @@
 package de.linzn.mirra.core.functions;
 
-import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
-import com.theokanning.openai.completion.chat.ChatFunctionProperty;
+import com.azure.ai.openai.models.FunctionDefinition;
 import de.linzn.homeDevices.HomeDevicesPlugin;
 import de.linzn.homeDevices.devices.enums.MqttDeviceCategory;
 import de.linzn.homeDevices.devices.interfaces.MqttDevice;
@@ -9,14 +8,18 @@ import de.linzn.homeDevices.devices.interfaces.MqttSwitch;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
+import de.linzn.mirra.openai.IFunctionCall;
+import de.linzn.mirra.openai.models.FunctionParameters;
+import de.linzn.mirra.openai.models.FunctionProperties;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.List;
 
-public class SwitchLight implements IFunction {
+public class SwitchLight implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         STEMSystemApp.LOGGER.CORE(input);
@@ -42,8 +45,8 @@ public class SwitchLight implements IFunction {
     }
 
     @Override
-    public ChatFunctionDynamic getFunctionString() {
-        HashSet<String> availableDevices = new HashSet<>();
+    public FunctionDefinition getFunctionString() {
+        List<String> availableDevices = new ArrayList<>();
         Collection<MqttDevice> devices = HomeDevicesPlugin.homeDevicesPlugin.getDeviceManager().getAllDevices();
         for (MqttDevice device : devices) {
             if (device.getDeviceProfile().getMqttDeviceCategory() == MqttDeviceCategory.SWITCH) {
@@ -51,24 +54,23 @@ public class SwitchLight implements IFunction {
             }
         }
 
-        return ChatFunctionDynamic.builder()
-                .name(this.functionName())
-                .description("Turn the light on or of in a room")
-                .addProperty(ChatFunctionProperty.builder()
-                        .name("room")
-                        .type("string")
-                        .description("The room name where the light is located. Only rooms from the given list are available. Check which rome name fits the best")
-                        .enumValues(availableDevices)
-                        .required(true)
-                        .build())
-                .addProperty(ChatFunctionProperty.builder()
-                        .name("status")
-                        .type("string")
-                        .description("The status to switch the light. 'Turn on' = 'true' and 'Turn off' = 'false'")
-                        .enumValues(new HashSet<>(Arrays.asList("true", "false")))
-                        .required(true)
-                        .build())
-                .build();
+        return new FunctionDefinition(this.functionName())
+                .setDescription("Turn the light on or of in a room")
+                .setParameters(new FunctionParameters()
+                        .setType("object")
+                        .addProperty(new FunctionProperties()
+                                .setName("room")
+                                .setType("string")
+                                .setDescription("The room name where the light is located. Only rooms from the given list are available. Check which rome name fits the best")
+                                .setEnumString(availableDevices)
+                                .setRequired(true))
+                        .addProperty(new FunctionProperties()
+                                .setName("status")
+                                .setType("string")
+                                .setDescription("The status to switch the light. 'Turn on' = 'true' and 'Turn off' = 'false'")
+                                .setEnumString(Arrays.asList("true", "false"))
+                                .setRequired(true))
+                        .build());
     }
 
     @Override

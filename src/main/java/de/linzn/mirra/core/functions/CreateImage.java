@@ -1,15 +1,17 @@
 package de.linzn.mirra.core.functions;
 
-import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
-import com.theokanning.openai.completion.chat.ChatFunctionProperty;
+import com.azure.ai.openai.models.FunctionDefinition;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
+import de.linzn.mirra.openai.IFunctionCall;
+import de.linzn.mirra.openai.models.FunctionParameters;
+import de.linzn.mirra.openai.models.FunctionProperties;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
-public class CreateImage implements IFunction {
+public class CreateImage implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         JSONObject jsonObject = new JSONObject();
@@ -27,17 +29,17 @@ public class CreateImage implements IFunction {
     }
 
     @Override
-    public ChatFunctionDynamic getFunctionString() {
-        return ChatFunctionDynamic.builder()
-                .name(this.functionName())
-                .description("Create or draw an image based of a given description and returns as a web url")
-                .addProperty(ChatFunctionProperty.builder()
-                        .name("imageDescription")
-                        .type("string")
-                        .description("The description to create the image like 'A black cat sitting in front of a house while sunrises'")
-                        .required(true)
-                        .build())
-                .build();
+    public FunctionDefinition getFunctionString() {
+        return new FunctionDefinition(this.functionName())
+                .setDescription("Create or draw an image based of a given description and returns as a web url")
+                .setParameters(new FunctionParameters()
+                        .setType("object")
+                        .addProperty(new FunctionProperties()
+                                .setName("imageDescription")
+                                .setType("string")
+                                .setDescription("The description to create the image like 'A black cat sitting in front of a house while sunrises'")
+                                .setRequired(true))
+                        .build());
     }
 
     @Override

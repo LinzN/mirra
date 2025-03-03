@@ -1,11 +1,12 @@
 package de.linzn.mirra.core.functions.memory;
 
-import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
-import com.theokanning.openai.completion.chat.ChatFunctionProperty;
-import de.linzn.mirra.core.functions.IFunction;
+import com.azure.ai.openai.models.FunctionDefinition;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
+import de.linzn.mirra.openai.IFunctionCall;
+import de.linzn.mirra.openai.models.FunctionParameters;
+import de.linzn.mirra.openai.models.FunctionProperties;
 import de.stem.stemSystem.STEMSystemApp;
 import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
 import org.json.JSONObject;
@@ -15,7 +16,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Date;
 
-public class WriteLongTermMEMORY implements IFunction {
+public class WriteLongTermMEMORY implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         STEMSystemApp.LOGGER.CORE(input);
@@ -32,17 +33,17 @@ public class WriteLongTermMEMORY implements IFunction {
     }
 
     @Override
-    public ChatFunctionDynamic getFunctionString() {
-        return ChatFunctionDynamic.builder()
-                .name(this.functionName())
-                .description("Save every useful information to long term memory. This makes it possible to access this data later again. Use this ALWAYS if you get new information from user. Example {\"memory_data\":\"The Birthday of Niklas is the 4th May\"}")
-                .addProperty(ChatFunctionProperty.builder()
-                        .name("memory_data_english")
-                        .type("string")
-                        .description("The memory to save. Important: Save the information in english only.")
-                        .required(true)
-                        .build())
-                .build();
+    public FunctionDefinition getFunctionString() {
+        return new FunctionDefinition(this.functionName())
+                .setDescription("Save every useful information to long term memory. This makes it possible to access this data later again. Use this ALWAYS if you get new information from user. Example {\"memory_data\":\"The Birthday of Niklas is the 4th May\"}")
+                .setParameters(new FunctionParameters()
+                        .setType("object")
+                        .addProperty(new FunctionProperties()
+                                .setName("memory_data_english")
+                                .setType("string")
+                                .setDescription("The memory to save. Important: Save the information in english only.")
+                                .setRequired(true))
+                        .build());
     }
 
     @Override

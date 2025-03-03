@@ -1,9 +1,9 @@
 package de.linzn.mirra.listener;
 
 import de.linzn.mirra.MirraPlugin;
-import de.linzn.mirra.core.functions.IFunction;
 import de.linzn.mirra.events.MirraReminderEvent;
 import de.linzn.mirra.identitySystem.TokenSource;
+import de.linzn.mirra.openai.IFunctionCall;
 import de.stem.stemSystem.STEMSystemApp;
 import de.stem.stemSystem.modules.eventModule.handler.StemEventHandler;
 import it.auties.whatsapp.model.jid.Jid;
@@ -19,7 +19,7 @@ public class MirraReminderListener {
         STEMSystemApp.LOGGER.CORE(mirraReminderEvent.getMirraReminder().getContent());
         STEMSystemApp.LOGGER.CORE(new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(mirraReminderEvent.getMirraReminder().getReminderDate()));
 
-        IFunction iFunction = MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().getFunction("trigger_reminder");
+        IFunctionCall iFunction = MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().getFunction("trigger_reminder");
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("reminderStatus", "now");
         jsonObject.put("outputLanguage", "German");

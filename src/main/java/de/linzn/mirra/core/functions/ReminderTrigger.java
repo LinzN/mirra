@@ -1,12 +1,14 @@
 package de.linzn.mirra.core.functions;
 
-import com.theokanning.openai.completion.chat.ChatFunctionDynamic;
+import com.azure.ai.openai.models.FunctionDefinition;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
+import de.linzn.mirra.openai.IFunctionCall;
+import de.linzn.mirra.openai.models.FunctionParameters;
 import de.stem.stemSystem.STEMSystemApp;
 import org.json.JSONObject;
 
-public class ReminderTrigger implements IFunction {
+public class ReminderTrigger implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         STEMSystemApp.LOGGER.CORE("Tis is a standalone function. No external call allowed");
@@ -17,11 +19,12 @@ public class ReminderTrigger implements IFunction {
     }
 
     @Override
-    public ChatFunctionDynamic getFunctionString() {
-        return ChatFunctionDynamic.builder()
-                .name(this.functionName())
-                .description("Trigger a reminder that was set before by the reminderTargetUsername")
-                .build();
+    public FunctionDefinition getFunctionString() {
+        return new FunctionDefinition(this.functionName())
+                .setDescription("Trigger a reminder that was set before by the reminderTargetUsername")
+                .setParameters(new FunctionParameters()
+                        .setType("object")
+                        .build());
     }
 
     @Override

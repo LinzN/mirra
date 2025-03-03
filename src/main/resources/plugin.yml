@@ -1,6 +1,6 @@
 main: de.linzn.mirra.MirraPlugin
 name: mirra
 version: ${project.version}
-depend: [ home-devices, weather, gas-station]
+depend: [ home-devices, weather, gas-station ]
 buildJobName: ${buildServer.jobName}
 buildNumber: ${buildServer.buildNumber}
