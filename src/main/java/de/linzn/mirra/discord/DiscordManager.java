@@ -6,6 +6,7 @@ import de.stem.stemSystem.STEMSystemApp;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 
 public class DiscordManager {
@@ -31,6 +32,9 @@ public class DiscordManager {
                 STEMSystemApp.LOGGER.ERROR(e);
             }
             jda.getPresence().setActivity(Activity.playing("Working on MirraNET"));
+            jda.updateCommands().addCommands(
+                    Commands.slash("ping", "Pong")
+            ).queue();
         });
     }
 

@@ -47,7 +47,7 @@ public class OnNewChatMessageListener implements Listener {
                     content = info.message().textWithNoContextMessage().get();
                 }
             }
-            Jid jid = Jid.of(senderJid.toPhoneNumber());
+            Jid jid = Jid.of(senderJid.toPhoneNumber().get());
             assignGPTModel(senderName, content, jid, messageType, whatsapp);
         }
         whatsapp.changePresence(false);

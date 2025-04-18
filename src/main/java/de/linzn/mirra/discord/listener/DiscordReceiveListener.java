@@ -9,6 +9,7 @@ import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
@@ -60,6 +61,12 @@ public class DiscordReceiveListener extends ListenerAdapter {
         } else {
             MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(user.getId()).complete()
                     .openPrivateChannel().complete().sendMessage(chatMessage).complete();
+        }
+    }
+    @Override
+    public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
+        if (event.getName().equals("ping")) {
+            event.reply("pong").queue(); // reply immediately
         }
     }
 }
