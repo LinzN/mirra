@@ -1,7 +1,8 @@
 package de.linzn.mirra.whatsapp.listener;
 
 import de.stem.stemSystem.STEMSystemApp;
-import it.auties.whatsapp.listener.Listener;
+import it.auties.whatsapp.api.Listener;
+
 
 public class OnLoggedInListener implements Listener {
     @Override

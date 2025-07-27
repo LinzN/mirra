@@ -179,6 +179,9 @@ public class AIModel {
         if (!this.memorySerializerHashMap.containsKey(userToken.getName())) {
             this.memorySerializerHashMap.put(userToken.getName(), new MemorySerializer(this, userToken));
         }
+
+        IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
+
         ChatMessage result;
         LinkedList<ChatMessage> dataToSend = new LinkedList<>();
         try {
@@ -209,7 +212,7 @@ public class AIModel {
                     if (this.aiManager.getFunctionProvider().hasFunction(result.getFunctionCall().getName())) {
                         IFunctionCall requestFunction = this.aiManager.getFunctionProvider().getFunction(result.getFunctionCall().getName());
                         JSONObject requestInputArguments = new JSONObject(result.getFunctionCall().getArguments());
-                        JSONObject requestJsonObject = requestFunction.completeRequest(requestInputArguments, null, userToken);
+                        JSONObject requestJsonObject = requestFunction.completeRequest(requestInputArguments, identityUser, userToken);// bugfix nullpointer???
                         ChatMessage requestFunctionResponse = new ChatMessage(new ChatRequestFunctionMessage(result.getFunctionCall().getName(), requestJsonObject.toString()));
                         this.memorySerializerHashMap.get(userToken.getName()).memorizeData(requestFunctionResponse);
                     } else {
