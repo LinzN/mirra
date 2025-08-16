@@ -13,7 +13,6 @@ public class ChatMessage {
         this.chatRequestMessage = chatRequestMessage;
     }
 
-
     public ChatMessage(String content, ChatRole role) {
         if (role == ChatRole.ASSISTANT) {
             chatRequestMessage = new ChatRequestAssistantMessage(content);
