@@ -63,6 +63,7 @@ public class DiscordReceiveListener extends ListenerAdapter {
                     .openPrivateChannel().complete().sendMessage(chatMessage).complete();
         }
     }
+
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if (event.getName().equals("ping")) {

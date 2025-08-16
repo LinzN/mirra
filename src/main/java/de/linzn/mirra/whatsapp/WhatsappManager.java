@@ -5,9 +5,8 @@ import de.linzn.mirra.whatsapp.listener.OnDisconnectedListener;
 import de.linzn.mirra.whatsapp.listener.OnLoggedInListener;
 import de.linzn.mirra.whatsapp.listener.OnNewChatMessageListener;
 import de.stem.stemSystem.STEMSystemApp;
-import it.auties.whatsapp.api.QrHandler;
-import it.auties.whatsapp.api.TextPreviewSetting;
 import it.auties.whatsapp.api.Whatsapp;
+import it.auties.whatsapp.api.WhatsappVerificationHandler;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -24,15 +23,13 @@ public class WhatsappManager {
         this.sessionUUID = UUID.fromString(MirraPlugin.mirraPlugin.getDefaultConfig().getString("whatsapp.sessionUUID", "dd8d7aca-a6cf-468f-a4bf-51c3b8ae7c8a"));
         MirraPlugin.mirraPlugin.getDefaultConfig().save();
         try {
-            this.whatsapp = Whatsapp.webBuilder()
+            this.whatsapp = Whatsapp.builder().webClient()
                     .lastConnection()
-                    .textPreviewSetting(TextPreviewSetting.DISABLED) // fix preview
-                    .unregistered(QrHandler.toTerminal())
+                    .unregistered(WhatsappVerificationHandler.Web.QrCode.toTerminal())
                     .addListener(new OnLoggedInListener())
                     .addListener(new OnDisconnectedListener())
                     .addListener(new OnNewChatMessageListener())
-                    .connect()
-                    .join();
+                    .connect(); // join removed???
             STEMSystemApp.getInstance().getScheduler().runRepeatScheduler(MirraPlugin.mirraPlugin, this::registerReconnectHandler, 30, 30, TimeUnit.SECONDS);
         } catch (Exception e) {
             STEMSystemApp.LOGGER.ERROR(e);

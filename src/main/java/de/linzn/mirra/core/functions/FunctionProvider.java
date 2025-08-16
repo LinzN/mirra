@@ -8,7 +8,10 @@ import de.linzn.mirra.core.manualCalls.UpdateSocialStatusCaller;
 import de.linzn.mirra.openai.IFunctionCall;
 import org.json.JSONObject;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 
 public class FunctionProvider {
     private final HashMap<String, IFunctionCall> functionHashMap;

@@ -31,6 +31,7 @@ public class MirraReminderListener {
         if (mirraReminderEvent.getMirraReminder().getUserToken().getSource() == TokenSource.DISCORD) {
             MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(mirraReminderEvent.getMirraReminder().getUserToken().getName()).complete().openPrivateChannel().complete().sendMessage(reminder).complete();
         } else if (mirraReminderEvent.getMirraReminder().getUserToken().getSource() == TokenSource.WHATSAPP) {
+            STEMSystemApp.LOGGER.CORE("Jid reminder:" + Jid.of(mirraReminderEvent.getMirraReminder().getUserToken().getName()));
             MirraPlugin.mirraPlugin.getWhatsappManager().getWhatsapp().sendChatMessage(Jid.of(mirraReminderEvent.getMirraReminder().getUserToken().getName()), reminder);
         }
     }

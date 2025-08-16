@@ -1,7 +1,6 @@
 package de.linzn.mirra.openai;
 
 import com.azure.ai.openai.models.*;
-import com.azure.core.util.BinaryData;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +22,7 @@ public class ChatMessage {
         } else if (role == ChatRole.SYSTEM) {
             chatRequestMessage = new ChatRequestSystemMessage(content);
         } else if (role == ChatRole.DEVELOPER) {
-            chatRequestMessage = new ChatRequestDeveloperMessage(BinaryData.fromString(content));
+            chatRequestMessage = new ChatRequestDeveloperMessage(content);
         } else {
             chatRequestMessage = new ChatRequestSystemMessage(content);
         }

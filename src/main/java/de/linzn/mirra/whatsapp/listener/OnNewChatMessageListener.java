@@ -6,21 +6,18 @@ import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
-import it.auties.whatsapp.api.Listener;
 import it.auties.whatsapp.api.Whatsapp;
+import it.auties.whatsapp.api.WhatsappListener;
 import it.auties.whatsapp.model.contact.Contact;
 import it.auties.whatsapp.model.info.MessageInfo;
 import it.auties.whatsapp.model.jid.Jid;
 import it.auties.whatsapp.model.message.model.Message;
 import it.auties.whatsapp.model.message.standard.TextMessage;
 import it.auties.whatsapp.model.message.standard.TextMessageBuilder;
-import net.dv8tion.jda.api.entities.MessageType;
-import org.json.JSONObject;
 
 import java.util.List;
 
-public class OnNewChatMessageListener implements Listener {
-
+public class OnNewChatMessageListener implements WhatsappListener {
 
     @Override
     public void onNewMessage(Whatsapp whatsapp, MessageInfo info) {
@@ -32,28 +29,15 @@ public class OnNewChatMessageListener implements Listener {
         String senderName;
         String content;
 
-        if(messageType == Message.Type.TEXT) {
+        if (messageType == Message.Type.TEXT) {
             if (whatsapp.store().findContactByJid(info.senderJid()).isPresent()) {
                 Contact contact = whatsapp.store().findContactByJid(info.senderJid()).get();
                 if (contact.fullName().isPresent()) {
                     senderName = contact.fullName().get();
-                /*
-                if (info.message().textWithNoContextMessage().isPresent()) {
-                    content = info.message().textWithNoContextMessage().get();
+                    content = ((TextMessage) info.message().content()).text();
                 } else {
-                    content = info.message().textMessage().get().text();
-                }*/
-                    content = ((TextMessage)info.message().content()).text();
-                } else {
-                    //senderName = new JSONObject(info.toJson()).getString("pushName");
                     senderName = contact.name();
-                    /*
-                    if (info.message().textMessage().isPresent()) {
-                        content = info.message().textMessage().get().text();
-                    } else {
-                        content = info.message().textWithNoContextMessage().get();
-                    }*/
-                    content = ((TextMessage)info.message().content()).text();
+                    content = ((TextMessage) info.message().content()).text();
                 }
                 Jid jid = Jid.of(senderJid.toPhoneNumber().get());
                 assignGPTModel(senderName, content, jid, messageType, whatsapp);
@@ -76,6 +60,7 @@ public class OnNewChatMessageListener implements Listener {
             STEMSystemApp.LOGGER.CORE(chatMessage);
             TextMessageBuilder textMessageBuilder = new TextMessageBuilder();
             textMessageBuilder.text(chatMessage);
+            STEMSystemApp.LOGGER.CORE("Jid text:" + identifier);
             whatsapp.sendChatMessage(identifier, textMessageBuilder.build().text());
         } else {
             STEMSystemApp.LOGGER.WARNING("Not supported yet. Only text input.");
