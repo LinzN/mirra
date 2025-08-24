@@ -30,8 +30,8 @@ public class OnNewChatMessageListener implements WhatsappListener {
         String content;
 
         if (messageType == Message.Type.TEXT) {
-            if (whatsapp.store().findContactByJid(info.senderJid()).isPresent()) {
-                Contact contact = whatsapp.store().findContactByJid(info.senderJid()).get();
+            if (whatsapp.store().findContactByJid(info.senderJid().withoutData()).isPresent()) {
+                Contact contact = whatsapp.store().findContactByJid(info.senderJid().withoutData()).get();
                 if (contact.fullName().isPresent()) {
                     senderName = contact.fullName().get();
                     content = ((TextMessage) info.message().content()).text();
@@ -39,7 +39,7 @@ public class OnNewChatMessageListener implements WhatsappListener {
                     senderName = contact.name();
                     content = ((TextMessage) info.message().content()).text();
                 }
-                Jid jid = Jid.of(senderJid.toPhoneNumber().get());
+                Jid jid = senderJid.withoutData();
                 assignGPTModel(senderName, content, jid, messageType, whatsapp);
             }
         }
@@ -59,6 +59,7 @@ public class OnNewChatMessageListener implements WhatsappListener {
             STEMSystemApp.LOGGER.INFO("Response fom AI model received.");
             STEMSystemApp.LOGGER.CORE(chatMessage);
             TextMessageBuilder textMessageBuilder = new TextMessageBuilder();
+            textMessageBuilder.previewType(TextMessage.PreviewType.NONE);
             textMessageBuilder.text(chatMessage);
             STEMSystemApp.LOGGER.CORE("Jid text:" + identifier);
             whatsapp.sendChatMessage(identifier, textMessageBuilder.build().text());

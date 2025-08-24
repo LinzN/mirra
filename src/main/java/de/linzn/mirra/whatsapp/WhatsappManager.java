@@ -6,6 +6,7 @@ import de.linzn.mirra.whatsapp.listener.OnLoggedInListener;
 import de.linzn.mirra.whatsapp.listener.OnNewChatMessageListener;
 import de.stem.stemSystem.STEMSystemApp;
 import it.auties.whatsapp.api.Whatsapp;
+import it.auties.whatsapp.api.WhatsappTextPreviewPolicy;
 import it.auties.whatsapp.api.WhatsappVerificationHandler;
 
 import java.util.UUID;
@@ -30,6 +31,8 @@ public class WhatsappManager {
                     .addListener(new OnDisconnectedListener())
                     .addListener(new OnNewChatMessageListener())
                     .connect(); // join removed???
+            this.whatsapp.store().setTextPreviewSetting(WhatsappTextPreviewPolicy.DISABLED);
+            Thread.sleep(1000);
             STEMSystemApp.getInstance().getScheduler().runRepeatScheduler(MirraPlugin.mirraPlugin, this::registerReconnectHandler, 30, 30, TimeUnit.SECONDS);
         } catch (Exception e) {
             STEMSystemApp.LOGGER.ERROR(e);
