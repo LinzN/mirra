@@ -58,7 +58,7 @@ public class OnNewChatMessageListener implements WhatsAppClientListener {
             STEMSystemApp.LOGGER.INFO("Response fom AI model received.");
             STEMSystemApp.LOGGER.CORE(chatMessage);
             TextMessageBuilder textMessageBuilder = new TextMessageBuilder();
-            textMessageBuilder.previewType(TextMessage.PreviewType.NONE);
+            //textMessageBuilder.previewType(TextMessage.PreviewType.NONE);
             textMessageBuilder.text(chatMessage);
             STEMSystemApp.LOGGER.CORE("Jid text:" + identifier);
             whatsapp.sendChatMessage(identifier, textMessageBuilder.build().text());

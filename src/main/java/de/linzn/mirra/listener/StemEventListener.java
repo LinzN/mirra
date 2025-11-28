@@ -12,13 +12,13 @@
 package de.linzn.mirra.listener;
 
 
+import com.github.auties00.cobalt.model.jid.Jid;
 import de.linzn.mirra.MirraPlugin;
 import de.stem.stemSystem.STEMSystemApp;
 import de.stem.stemSystem.modules.eventModule.handler.StemEventHandler;
 import de.stem.stemSystem.modules.informationModule.InformationBlock;
 import de.stem.stemSystem.modules.informationModule.InformationIntent;
 import de.stem.stemSystem.modules.informationModule.events.InformationEvent;
-import it.auties.whatsapp.model.jid.Jid;
 
 public class StemEventListener {
 

@@ -1,12 +1,12 @@
 package de.linzn.mirra.listener;
 
+import com.github.auties00.cobalt.model.jid.Jid;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.events.MirraReminderEvent;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.stem.stemSystem.STEMSystemApp;
 import de.stem.stemSystem.modules.eventModule.handler.StemEventHandler;
-import it.auties.whatsapp.model.jid.Jid;
 import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
