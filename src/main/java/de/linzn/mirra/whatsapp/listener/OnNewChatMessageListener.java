@@ -1,26 +1,25 @@
 package de.linzn.mirra.whatsapp.listener;
 
+import com.github.auties00.cobalt.client.WhatsAppClient;
+import com.github.auties00.cobalt.client.WhatsAppClientListener;
+import com.github.auties00.cobalt.model.contact.Contact;
+import com.github.auties00.cobalt.model.info.MessageInfo;
+import com.github.auties00.cobalt.model.jid.Jid;
+import com.github.auties00.cobalt.model.message.model.Message;
+import com.github.auties00.cobalt.model.message.standard.TextMessage;
+import com.github.auties00.cobalt.model.message.standard.TextMessageBuilder;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.identitySystem.IdentityGuest;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
-import it.auties.whatsapp.api.Whatsapp;
-import it.auties.whatsapp.api.WhatsappListener;
-import it.auties.whatsapp.model.contact.Contact;
-import it.auties.whatsapp.model.info.MessageInfo;
-import it.auties.whatsapp.model.jid.Jid;
-import it.auties.whatsapp.model.message.model.Message;
-import it.auties.whatsapp.model.message.standard.TextMessage;
-import it.auties.whatsapp.model.message.standard.TextMessageBuilder;
-
 import java.util.List;
 
-public class OnNewChatMessageListener implements WhatsappListener {
+public class OnNewChatMessageListener implements WhatsAppClientListener {
 
     @Override
-    public void onNewMessage(Whatsapp whatsapp, MessageInfo info) {
+    public void onNewMessage(WhatsAppClient whatsapp, MessageInfo info) {
         whatsapp.changePresence(true);
 
         Message.Type messageType = info.message().deepType();
@@ -46,7 +45,7 @@ public class OnNewChatMessageListener implements WhatsappListener {
         whatsapp.changePresence(false);
     }
 
-    private void assignGPTModel(String sender, String content, Jid identifier, Message.Type messageType, Whatsapp whatsapp) {
+    private void assignGPTModel(String sender, String content, Jid identifier, Message.Type messageType, WhatsAppClient whatsapp) {
         STEMSystemApp.LOGGER.INFO("Receive Whatsapp input for AI model");
         if (messageType == Message.Type.TEXT) {
             UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);

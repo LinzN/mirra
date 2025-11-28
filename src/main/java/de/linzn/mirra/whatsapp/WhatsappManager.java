@@ -1,13 +1,12 @@
 package de.linzn.mirra.whatsapp;
 
+import com.github.auties00.cobalt.client.WhatsAppClient;
+import com.github.auties00.cobalt.client.WhatsAppClientVerificationHandler;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.whatsapp.listener.OnDisconnectedListener;
 import de.linzn.mirra.whatsapp.listener.OnLoggedInListener;
 import de.linzn.mirra.whatsapp.listener.OnNewChatMessageListener;
 import de.stem.stemSystem.STEMSystemApp;
-import it.auties.whatsapp.api.Whatsapp;
-import it.auties.whatsapp.api.WhatsappTextPreviewPolicy;
-import it.auties.whatsapp.api.WhatsappVerificationHandler;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -16,7 +15,7 @@ public class WhatsappManager {
 
     public String defaultJID;
     public UUID sessionUUID;
-    private Whatsapp whatsapp;
+    private WhatsAppClient whatsapp;
 
 
     public WhatsappManager() {
@@ -24,9 +23,9 @@ public class WhatsappManager {
         this.sessionUUID = UUID.fromString(MirraPlugin.mirraPlugin.getDefaultConfig().getString("whatsapp.sessionUUID", "dd8d7aca-a6cf-468f-a4bf-51c3b8ae7c8a"));
         MirraPlugin.mirraPlugin.getDefaultConfig().save();
         try {
-            this.whatsapp = Whatsapp.builder().webClient()
-                    .lastConnection()
-                    .unregistered(WhatsappVerificationHandler.Web.QrCode.toTerminal())
+            this.whatsapp = WhatsAppClient.builder().webClient()
+                    .loadLastOrCreateConnection()
+                    .unregistered(WhatsAppClientVerificationHandler.Web.QrCode.toTerminal())
                     .addListener(new OnLoggedInListener())
                     .addListener(new OnDisconnectedListener())
                     .addListener(new OnNewChatMessageListener())

@@ -1,12 +1,13 @@
 package de.linzn.mirra.whatsapp.listener;
 
+import com.github.auties00.cobalt.client.WhatsAppClient;
+import com.github.auties00.cobalt.client.WhatsAppClientListener;
 import de.stem.stemSystem.STEMSystemApp;
-import it.auties.whatsapp.api.WhatsappListener;
 
 
-public class OnLoggedInListener implements WhatsappListener {
+public class OnLoggedInListener implements WhatsAppClientListener {
     @Override
-    public void onLoggedIn() {
+    public void onLoggedIn(WhatsAppClient whatsapp) {
         STEMSystemApp.LOGGER.CONFIG("Whatsapp login successful");
     }
 }
