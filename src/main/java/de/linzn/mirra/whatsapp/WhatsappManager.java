@@ -30,7 +30,7 @@ public class WhatsappManager {
                     .addListener(new OnDisconnectedListener())
                     .addListener(new OnNewChatMessageListener())
                     .connect(); // join removed???
-            this.whatsapp.store().setTextPreviewSetting(WhatsappTextPreviewPolicy.DISABLED);
+            //this.whatsapp.store().setTextPreviewSetting(WhatsappTextPreviewPolicy.DISABLED);
             Thread.sleep(1000);
             STEMSystemApp.getInstance().getScheduler().runRepeatScheduler(MirraPlugin.mirraPlugin, this::registerReconnectHandler, 30, 30, TimeUnit.SECONDS);
         } catch (Exception e) {
@@ -55,7 +55,7 @@ public class WhatsappManager {
         whatsapp.changePresence(false);
     }
 
-    public Whatsapp getWhatsapp() {
+    public WhatsAppClient getWhatsapp() {
         return whatsapp;
     }
 }
