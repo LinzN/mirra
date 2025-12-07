@@ -1,65 +1,53 @@
 package de.linzn.mirra.whatsapp.listener;
 
-import it.auties.whatsapp.api.TextPreviewSetting;
-import it.auties.whatsapp.api.TextPreviewSettingSpec;
-import it.auties.whatsapp.api.Whatsapp;
-import it.auties.whatsapp.listener.Listener;
-
-import it.auties.whatsapp.model.contact.Contact;
-import it.auties.whatsapp.model.info.MessageInfo;
-import it.auties.whatsapp.model.jid.Jid;
-import it.auties.whatsapp.model.message.model.Message;
-import it.auties.whatsapp.model.message.model.MessageType;
-import it.auties.whatsapp.model.message.standard.TextMessage;
-import it.auties.whatsapp.model.message.standard.TextMessageBuilder;
+import com.github.auties00.cobalt.client.WhatsAppClient;
+import com.github.auties00.cobalt.client.WhatsAppClientListener;
+import com.github.auties00.cobalt.model.contact.Contact;
+import com.github.auties00.cobalt.model.info.MessageInfo;
+import com.github.auties00.cobalt.model.jid.Jid;
+import com.github.auties00.cobalt.model.message.model.Message;
+import com.github.auties00.cobalt.model.message.standard.TextMessage;
+import com.github.auties00.cobalt.model.message.standard.TextMessageBuilder;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.identitySystem.IdentityGuest;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.stem.stemSystem.STEMSystemApp;
-import org.json.JSONObject;
-
 import java.util.List;
 
-public class OnNewChatMessageListener implements Listener  {
+public class OnNewChatMessageListener implements WhatsAppClientListener {
 
     @Override
-    public void onNewMessage(Whatsapp whatsapp, MessageInfo info) {
+    public void onNewMessage(WhatsAppClient whatsapp, MessageInfo info) {
         whatsapp.changePresence(true);
 
-        MessageType messageType = info.message().deepType();
+        Message.Type messageType = info.message().deepType();
         Jid senderJid = info.senderJid();
 
         String senderName;
         String content;
 
-        if (whatsapp.store().findContactByJid(info.senderJid()).isPresent()) {
-            Contact contact = whatsapp.store().findContactByJid(info.senderJid()).get();
-            if (contact.fullName().isPresent()) {
-                senderName = contact.fullName().get();
-                if (info.message().textWithNoContextMessage().isPresent()) {
-                    content = info.message().textWithNoContextMessage().get();
+        if (messageType == Message.Type.TEXT) {
+            if (whatsapp.store().findContactByJid(info.senderJid().withoutData()).isPresent()) {
+                Contact contact = whatsapp.store().findContactByJid(info.senderJid().withoutData()).get();
+                if (contact.fullName().isPresent()) {
+                    senderName = contact.fullName().get();
+                    content = ((TextMessage) info.message().content()).text();
                 } else {
-                    content = info.message().textMessage().get().text();
+                    senderName = contact.name();
+                    content = ((TextMessage) info.message().content()).text();
                 }
-            } else {
-                senderName = new JSONObject(info.toJson()).getString("pushName");
-                if (info.message().textMessage().isPresent()) {
-                    content = info.message().textMessage().get().text();
-                } else {
-                    content = info.message().textWithNoContextMessage().get();
-                }
+                Jid jid = senderJid.withoutData();
+                assignGPTModel(senderName, content, jid, messageType, whatsapp);
             }
-            Jid jid = Jid.of(senderJid.toPhoneNumber());
-            assignGPTModel(senderName, content, jid, messageType, whatsapp);
         }
         whatsapp.changePresence(false);
     }
 
-    private void assignGPTModel(String sender, String content, Jid identifier, MessageType messageType, Whatsapp whatsapp) {
+    private void assignGPTModel(String sender, String content, Jid identifier, Message.Type messageType, WhatsAppClient whatsapp) {
         STEMSystemApp.LOGGER.INFO("Receive Whatsapp input for AI model");
-        if (messageType == MessageType.TEXT) {
+        if (messageType == Message.Type.TEXT) {
             UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
             IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
             if (identityUser instanceof IdentityGuest) {
@@ -70,8 +58,10 @@ public class OnNewChatMessageListener implements Listener  {
             STEMSystemApp.LOGGER.INFO("Response fom AI model received.");
             STEMSystemApp.LOGGER.CORE(chatMessage);
             TextMessageBuilder textMessageBuilder = new TextMessageBuilder();
+            //textMessageBuilder.previewType(TextMessage.PreviewType.NONE);
             textMessageBuilder.text(chatMessage);
-            whatsapp.sendMessage(identifier, textMessageBuilder.build());
+            STEMSystemApp.LOGGER.CORE("Jid text:" + identifier);
+            whatsapp.sendChatMessage(identifier, textMessageBuilder.build().text());
         } else {
             STEMSystemApp.LOGGER.WARNING("Not supported yet. Only text input.");
             whatsapp.sendChatMessage(identifier, "This input is not supported yet!");
