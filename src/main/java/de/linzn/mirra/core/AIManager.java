@@ -17,7 +17,7 @@ import de.linzn.mirra.core.functions.FunctionProvider;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
-import de.stem.stemSystem.STEMSystemApp;
+import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
@@ -47,7 +47,7 @@ public class AIManager {
     private void registerStemAIEventService() {
         if (this.functionProvider.hasFunction("trigger_event")) {
             IFunctionCall iFunction = this.functionProvider.getFunction("trigger_event");
-            STEMSystemApp.getInstance().getInformationModule().registerAiTextEngine(event -> {
+            STEMApp.getInstance().getInformationModule().registerAiTextEngine(event -> {
                 UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken("stem_internal_handler", TokenSource.INTERNAL);
                 try {
                     JSONObject jsonObject = new JSONObject();
@@ -58,12 +58,12 @@ public class AIManager {
                     jsonObject.put("timestamp", new SimpleDateFormat("dd.MM.yyyy - HH:mm:ss").format(new Date()));
                     return MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestStandaloneFunctionCall(iFunction.functionName(), jsonObject, userToken);
                 } catch (Exception e) {
-                    STEMSystemApp.LOGGER.ERROR(e);
+                    STEMApp.LOGGER.ERROR(e);
                     return event;
                 }
             });
         } else {
-            STEMSystemApp.LOGGER.ERROR("Not possible to register ai event system. No function found!");
+            STEMApp.LOGGER.ERROR("Not possible to register ai event system. No function found!");
         }
     }
 

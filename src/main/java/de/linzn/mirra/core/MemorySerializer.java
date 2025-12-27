@@ -19,8 +19,8 @@ import com.azure.ai.openai.models.FunctionCall;
 import com.azure.json.JsonProviders;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.ChatMessage;
-import de.stem.stemSystem.STEMSystemApp;
-import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
+import de.linzn.stem.STEMApp;
+import de.linzn.stem.modules.databaseModule.DatabaseModule;
 
 import java.io.IOException;
 import java.sql.*;
@@ -58,7 +58,7 @@ public class MemorySerializer {
     private void storeDatabase(ChatMessage chatMessage) {
         java.sql.Date date = new java.sql.Date(new Date().getTime());
 
-        DatabaseModule databaseModule = STEMSystemApp.getInstance().getDatabaseModule();
+        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
 
         String functionName = null;
         String functionJson = null;
@@ -92,13 +92,13 @@ public class MemorySerializer {
 
             databaseModule.releaseConnection(conn);
         } catch (SQLException e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
         }
     }
 
     private void remindFromDatabase() {
 
-        DatabaseModule databaseModule = STEMSystemApp.getInstance().getDatabaseModule();
+        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
 
         try {
             Connection conn = databaseModule.getConnection();
@@ -108,7 +108,7 @@ public class MemorySerializer {
             ResultSet rs = st.executeQuery(query);
 
             while (rs.next()) {
-                STEMSystemApp.LOGGER.DEBUG("Loading gptID " + rs.getInt("id") + " from database");
+                STEMApp.LOGGER.DEBUG("Loading gptID " + rs.getInt("id") + " from database");
                 String role = rs.getString("role");
                 String content = rs.getString("content");
                 String functionName = rs.getString("function_name");
@@ -127,7 +127,7 @@ public class MemorySerializer {
                                 FunctionCall functionCall = FunctionCall.fromJson(JsonProviders.createReader(functionJson));
                                 chatRequestAssistantMessage.setFunctionCall(functionCall);
                             } catch (IOException ignored) {
-                                STEMSystemApp.LOGGER.WARNING("Not possible to convert functionCall");
+                                STEMApp.LOGGER.WARNING("Not possible to convert functionCall");
                             }
                         }
                         chatMessage = new ChatMessage(chatRequestAssistantMessage);
@@ -139,7 +139,7 @@ public class MemorySerializer {
 
             databaseModule.releaseConnection(conn);
         } catch (SQLException e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
         }
     }
 

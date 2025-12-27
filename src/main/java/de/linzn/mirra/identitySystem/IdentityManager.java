@@ -12,8 +12,9 @@
 
 package de.linzn.mirra.identitySystem;
 
-import de.stem.stemSystem.STEMSystemApp;
-import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
+
+import de.linzn.stem.STEMApp;
+import de.linzn.stem.modules.databaseModule.DatabaseModule;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -32,7 +33,7 @@ public class IdentityManager {
     }
 
     private void addIdentityUser(IdentityUser identityUser) {
-        STEMSystemApp.LOGGER.CONFIG("ADD IdentityUser: " + identityUser.getIdentityName());
+        STEMApp.LOGGER.CONFIG("ADD IdentityUser: " + identityUser.getIdentityName());
         this.identities.add(identityUser);
     }
 
@@ -53,7 +54,7 @@ public class IdentityManager {
     }
 
     private void loadIdentities() {
-        DatabaseModule databaseModule = STEMSystemApp.getInstance().getDatabaseModule();
+        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
         try {
             Connection conn = databaseModule.getConnection();
 
@@ -89,7 +90,7 @@ public class IdentityManager {
             }
             databaseModule.releaseConnection(conn);
         } catch (SQLException e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
         }
     }
 

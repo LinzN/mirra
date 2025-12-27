@@ -12,7 +12,7 @@
 
 package de.linzn.mirra.identitySystem;
 
-import de.stem.stemSystem.STEMSystemApp;
+import de.linzn.stem.STEMApp;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +30,7 @@ public class IdentityUser {
     }
 
     public void addPermission(AiPermissions aiPermissions) {
-        STEMSystemApp.LOGGER.CONFIG("ADD AIPermissions " + aiPermissions.name() + " to " + this.getIdentityName());
+        STEMApp.LOGGER.CONFIG("ADD AIPermissions " + aiPermissions.name() + " to " + this.getIdentityName());
         this.aiPermissionsList.add(aiPermissions);
     }
 
@@ -43,7 +43,7 @@ public class IdentityUser {
     }
 
     public void assignUserToken(UserToken userToken) {
-        STEMSystemApp.LOGGER.CONFIG("ADD IdentityToken " + userToken.getName() + " to " + this.getIdentityName());
+        STEMApp.LOGGER.CONFIG("ADD IdentityToken " + userToken.getName() + " to " + this.getIdentityName());
         this.userTokens.add(userToken);
     }
 

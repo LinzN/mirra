@@ -18,7 +18,7 @@ import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
-import de.stem.stemSystem.STEMSystemApp;
+import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
 import java.util.Date;
@@ -29,7 +29,7 @@ public class StemStatus implements IFunctionCall {
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         JSONObject jsonObject = new JSONObject();
         if (identityUser.hasPermission(AiPermissions.STATUS_STEM)) {
-            Date date = STEMSystemApp.getInstance().getUptimeDate();
+            Date date = STEMApp.getInstance().getUptimeDate();
             long diff = TimeUnit.MILLISECONDS.toSeconds(new Date().getTime() - date.getTime());
             String uptime = String.format("%d days, %02d:%02d:%02d", (diff / (3600 * 24)), diff / 3600, (diff % 3600) / 60, (diff % 60));
 

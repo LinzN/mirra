@@ -18,7 +18,7 @@ import de.linzn.mirra.identitySystem.IdentityGuest;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
-import de.stem.stemSystem.STEMSystemApp;
+import de.linzn.stem.STEMApp;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -41,7 +41,7 @@ public class DiscordReceiveListener extends ListenerAdapter {
     }
 
     private void assignGPTModel(String sender, String content, User user) {
-        STEMSystemApp.LOGGER.INFO("Receive Discord input for AI model");
+        STEMApp.LOGGER.INFO("Receive Discord input for AI model");
         UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(user.getId(), TokenSource.DISCORD);
         IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
         if (identityUser instanceof IdentityGuest) {
@@ -49,8 +49,8 @@ public class DiscordReceiveListener extends ListenerAdapter {
         }
         List<String> input = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().buildMessageBlock(identityUser.getIdentityName(), content, userToken.getSource().name());
         String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, userToken, sender);
-        STEMSystemApp.LOGGER.INFO("Response fom AI model received.");
-        STEMSystemApp.LOGGER.CORE(chatMessage);
+        STEMApp.LOGGER.INFO("Response fom AI model received.");
+        STEMApp.LOGGER.CORE(chatMessage);
         //MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(user.getId()).complete().openPrivateChannel().complete().sendMessage(chatMessage).complete();
 
         int maxLength = 1900;

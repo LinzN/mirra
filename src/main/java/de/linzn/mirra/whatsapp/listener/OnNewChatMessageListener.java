@@ -25,7 +25,8 @@ import de.linzn.mirra.identitySystem.IdentityGuest;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
-import de.stem.stemSystem.STEMSystemApp;
+import de.linzn.stem.STEMApp;
+
 import java.util.List;
 
 public class OnNewChatMessageListener implements WhatsAppClientListener {
@@ -58,7 +59,7 @@ public class OnNewChatMessageListener implements WhatsAppClientListener {
     }
 
     private void assignGPTModel(String sender, String content, Jid identifier, Message.Type messageType, WhatsAppClient whatsapp) {
-        STEMSystemApp.LOGGER.INFO("Receive Whatsapp input for AI model");
+        STEMApp.LOGGER.INFO("Receive Whatsapp input for AI model");
         if (messageType == Message.Type.TEXT) {
             UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
             IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
@@ -67,15 +68,15 @@ public class OnNewChatMessageListener implements WhatsAppClientListener {
             }
             List<String> input = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().buildMessageBlock(identityUser.getIdentityName(), content, userToken.getSource().name());
             String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, userToken, sender);
-            STEMSystemApp.LOGGER.INFO("Response fom AI model received.");
-            STEMSystemApp.LOGGER.CORE(chatMessage);
+            STEMApp.LOGGER.INFO("Response fom AI model received.");
+            STEMApp.LOGGER.CORE(chatMessage);
             TextMessageBuilder textMessageBuilder = new TextMessageBuilder();
             //textMessageBuilder.previewType(TextMessage.PreviewType.NONE);
             textMessageBuilder.text(chatMessage);
-            STEMSystemApp.LOGGER.CORE("Jid text:" + identifier);
+            STEMApp.LOGGER.CORE("Jid text:" + identifier);
             whatsapp.sendChatMessage(identifier, textMessageBuilder.build().text());
         } else {
-            STEMSystemApp.LOGGER.WARNING("Not supported yet. Only text input.");
+            STEMApp.LOGGER.WARNING("Not supported yet. Only text input.");
             whatsapp.sendChatMessage(identifier, "This input is not supported yet!");
         }
     }

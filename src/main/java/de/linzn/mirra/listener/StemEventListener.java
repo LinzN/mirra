@@ -15,11 +15,12 @@ package de.linzn.mirra.listener;
 
 import com.github.auties00.cobalt.model.jid.Jid;
 import de.linzn.mirra.MirraPlugin;
-import de.stem.stemSystem.STEMSystemApp;
-import de.stem.stemSystem.modules.eventModule.handler.StemEventHandler;
-import de.stem.stemSystem.modules.informationModule.InformationBlock;
-import de.stem.stemSystem.modules.informationModule.InformationIntent;
-import de.stem.stemSystem.modules.informationModule.events.InformationEvent;
+import de.linzn.stem.STEMApp;
+import de.linzn.stem.modules.eventModule.handler.StemEventHandler;
+import de.linzn.stem.modules.informationModule.InformationBlock;
+import de.linzn.stem.modules.informationModule.InformationIntent;
+import de.linzn.stem.modules.informationModule.events.InformationEvent;
+
 
 public class StemEventListener {
 
@@ -30,7 +31,7 @@ public class StemEventListener {
             try {
                 MirraPlugin.mirraPlugin.getWhatsappManager().getWhatsapp().sendChatMessage(Jid.of(MirraPlugin.mirraPlugin.getWhatsappManager().defaultJID), informationBlock.getLongDescription());
             } catch (Exception e) {
-                STEMSystemApp.LOGGER.ERROR(e);
+                STEMApp.LOGGER.ERROR(e);
             }
 
         }
@@ -43,7 +44,7 @@ public class StemEventListener {
             try {
                 MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(MirraPlugin.mirraPlugin.getDiscordManager().defaultUID).complete().openPrivateChannel().complete().sendMessage(informationBlock.getLongDescription()).complete();
             } catch (Exception e) {
-                STEMSystemApp.LOGGER.ERROR(e);
+                STEMApp.LOGGER.ERROR(e);
             }
         }
     }

@@ -22,8 +22,8 @@ import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.ChatMessage;
 import de.linzn.mirra.openai.IFunctionCall;
-import de.stem.stemSystem.STEMSystemApp;
-import de.stem.stemSystem.modules.cloudModule.CloudFile;
+import de.linzn.stem.STEMApp;
+import de.linzn.stem.modules.cloudModule.CloudFile;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -80,7 +80,7 @@ public class AIModel {
         if (identityUser instanceof IdentityGuest) {
             ((IdentityGuest) identityUser).setGuestName(displayName);
         }
-        STEMSystemApp.LOGGER.CONFIG("Request by identityUser " + identityUser.getIdentityName());
+        STEMApp.LOGGER.CONFIG("Request by identityUser " + identityUser.getIdentityName());
         if (!this.memorySerializerHashMap.containsKey(userToken.getName())) {
             this.memorySerializerHashMap.put(userToken.getName(), new MemorySerializer(this, userToken));
         }
@@ -109,7 +109,7 @@ public class AIModel {
             this.memorySerializerHashMap.get(userToken.getName()).memorizeData(result);
 
             while (result.hasFunctionCall()) {
-                STEMSystemApp.LOGGER.CORE("Function call received");
+                STEMApp.LOGGER.CORE("Function call received");
 
                 if (this.aiManager.getFunctionProvider().hasFunction(result.getFunctionCall().getName())) {
                     IFunctionCall function = this.aiManager.getFunctionProvider().getFunction(result.getFunctionCall().getName());
@@ -137,12 +137,12 @@ public class AIModel {
                 choice = chatCompletions.getChoices().get(0);
                 result = ChatMessage.buildsFrom(choice.getMessage());
 
-                STEMSystemApp.LOGGER.CORE("Function call finished");
+                STEMApp.LOGGER.CORE("Function call finished");
                 this.memorySerializerHashMap.get(userToken.getName()).memorizeData(result);
 
             }
         } catch (Exception e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
             result = new ChatMessage("An error was catch in kernel stacktrace! Please check STEM logs for more information! \n" + e.getMessage(), ChatRole.ASSISTANT);
         }
 
@@ -171,7 +171,7 @@ public class AIModel {
             InputStream in = openaiImageUrl.openStream();
             Files.copy(in, Paths.get(tempFile.getPath()), StandardCopyOption.REPLACE_EXISTING);
 
-            CloudFile cloudFile = STEMSystemApp.getInstance().getCloudModule().uploadFileRandomName(tempFile, "/GeneratedImages/");
+            CloudFile cloudFile = STEMApp.getInstance().getCloudModule().uploadFileRandomName(tempFile, "/GeneratedImages/");
             if (cloudFile != null) {
                 String nextcloudURL = cloudFile.createPublicShareLink();
                 url = new StringBuilder(nextcloudURL);
@@ -180,7 +180,7 @@ public class AIModel {
             }
 
         } catch (Exception e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
             url = new StringBuilder("An error was catch in kernel stacktrace! Please check STEM logs for more information!");
         }
 
@@ -198,7 +198,7 @@ public class AIModel {
         LinkedList<ChatMessage> dataToSend = new LinkedList<>();
         try {
             if (this.aiManager.getFunctionProvider().hasFunction(functionName)) {
-                STEMSystemApp.LOGGER.CORE("Standalone function call started");
+                STEMApp.LOGGER.CORE("Standalone function call started");
                 IFunctionCall function = this.aiManager.getFunctionProvider().getFunction(functionName);
                 ChatRequestFunctionMessage chatRequestFunctionMessage = new ChatRequestFunctionMessage(function.functionName(), jsonObject.toString());
                 ChatMessage functionResponse = new ChatMessage(chatRequestFunctionMessage);
@@ -220,7 +220,7 @@ public class AIModel {
                 result = ChatMessage.buildsFrom(choice.getMessage());
 
                 while (result.hasFunctionCall()) {
-                    STEMSystemApp.LOGGER.CORE("Manual function call received");
+                    STEMApp.LOGGER.CORE("Manual function call received");
                     if (this.aiManager.getFunctionProvider().hasFunction(result.getFunctionCall().getName())) {
                         IFunctionCall requestFunction = this.aiManager.getFunctionProvider().getFunction(result.getFunctionCall().getName());
                         JSONObject requestInputArguments = new JSONObject(result.getFunctionCall().getArguments());
@@ -247,17 +247,17 @@ public class AIModel {
                     choice = chatCompletions.getChoices().get(0);
                     result = ChatMessage.buildsFrom(choice.getMessage());
 
-                    STEMSystemApp.LOGGER.CORE("Manual function call finished");
+                    STEMApp.LOGGER.CORE("Manual function call finished");
                 }
 
 
                 this.memorySerializerHashMap.get(userToken.getName()).memorizeData(result);
-                STEMSystemApp.LOGGER.CORE("Standalone function call finished");
+                STEMApp.LOGGER.CORE("Standalone function call finished");
             } else {
                 result = new ChatMessage("No function found with this name!", ChatRole.ASSISTANT);
             }
         } catch (Exception e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
             result = new ChatMessage("An error was catch in kernel stacktrace! Please check STEM logs for more information! \n" + e.getMessage(), ChatRole.ASSISTANT);
         }
         return result.getContent();

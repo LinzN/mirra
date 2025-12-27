@@ -13,7 +13,7 @@
 package de.linzn.mirra.events;
 
 import de.linzn.mirra.core.reminder.MirraReminder;
-import de.stem.stemSystem.modules.eventModule.StemEvent;
+import de.linzn.stem.modules.eventModule.StemEvent;
 
 public class MirraReminderEvent implements StemEvent {
 

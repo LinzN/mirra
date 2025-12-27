@@ -17,8 +17,8 @@ import de.linzn.mirra.events.MirraReminderEvent;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
-import de.stem.stemSystem.STEMSystemApp;
-import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
+import de.linzn.stem.STEMApp;
+import de.linzn.stem.modules.databaseModule.DatabaseModule;
 
 import java.sql.*;
 import java.util.Date;
@@ -32,11 +32,11 @@ public class ReminderEngine implements Runnable {
     public ReminderEngine() {
         this.activeReminderQueue = new ConcurrentLinkedQueue<>();
         this.loadMirraReminders();
-        STEMSystemApp.getInstance().getScheduler().runRepeatScheduler(MirraPlugin.mirraPlugin, this, 5000, 200, TimeUnit.MILLISECONDS);
+        STEMApp.getInstance().getScheduler().runRepeatScheduler(MirraPlugin.mirraPlugin, this, 5000, 200, TimeUnit.MILLISECONDS);
     }
 
     private void loadMirraReminders() {
-        DatabaseModule databaseModule = STEMSystemApp.getInstance().getDatabaseModule();
+        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
         try {
             Connection conn = databaseModule.getConnection();
 
@@ -67,12 +67,12 @@ public class ReminderEngine implements Runnable {
             }
             databaseModule.releaseConnection(conn);
         } catch (SQLException e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
         }
     }
 
     public MirraReminder createMirraReminder(IdentityUser identityUser, UserToken userToken, String reminderContent, Date reminderDatetime) {
-        DatabaseModule databaseModule = STEMSystemApp.getInstance().getDatabaseModule();
+        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
         int reminderID = -1;
         try {
             Connection conn = databaseModule.getConnection();
@@ -92,7 +92,7 @@ public class ReminderEngine implements Runnable {
             }
             databaseModule.releaseConnection(conn);
         } catch (SQLException e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
         }
 
 
@@ -103,7 +103,7 @@ public class ReminderEngine implements Runnable {
 
     public void disableMirraReminder(MirraReminder mirraReminder) {
         this.activeReminderQueue.remove(mirraReminder);
-        DatabaseModule databaseModule = STEMSystemApp.getInstance().getDatabaseModule();
+        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
 
         try {
             Connection conn = databaseModule.getConnection();
@@ -115,7 +115,7 @@ public class ReminderEngine implements Runnable {
             preparedStmt.executeUpdate();
             databaseModule.releaseConnection(conn);
         } catch (SQLException e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
         }
     }
 
@@ -125,9 +125,9 @@ public class ReminderEngine implements Runnable {
             if (new Date().after(m.getReminderDate())) {
                 try {
                     this.disableMirraReminder(m);
-                    STEMSystemApp.getInstance().getEventModule().getStemEventBus().fireEvent(new MirraReminderEvent(m));
+                    STEMApp.getInstance().getEventModule().getStemEventBus().fireEvent(new MirraReminderEvent(m));
                 } catch (Exception e) {
-                    STEMSystemApp.LOGGER.ERROR(e);
+                    STEMApp.LOGGER.ERROR(e);
                 }
             }
         }

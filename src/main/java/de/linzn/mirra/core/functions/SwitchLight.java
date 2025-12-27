@@ -23,7 +23,7 @@ import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
 import de.linzn.mirra.openai.models.FunctionProperties;
-import de.stem.stemSystem.STEMSystemApp;
+import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -34,7 +34,7 @@ import java.util.List;
 public class SwitchLight implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
-        STEMSystemApp.LOGGER.CORE(input);
+        STEMApp.LOGGER.CORE(input);
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("room", input.getString("room"));
 

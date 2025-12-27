@@ -13,15 +13,10 @@
 package de.linzn.mirra.whatsapp;
 
 import com.github.auties00.cobalt.client.WhatsAppClient;
-import com.github.auties00.cobalt.client.WhatsAppClientVerificationHandler;
 import de.linzn.mirra.MirraPlugin;
-import de.linzn.mirra.whatsapp.listener.OnDisconnectedListener;
-import de.linzn.mirra.whatsapp.listener.OnLoggedInListener;
-import de.linzn.mirra.whatsapp.listener.OnNewChatMessageListener;
-import de.stem.stemSystem.STEMSystemApp;
+import de.linzn.stem.STEMApp;
 
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 public class WhatsappManager {
 
@@ -53,10 +48,10 @@ public class WhatsappManager {
     private void registerReconnectHandler() {
         if (!whatsapp.isConnected()) {
             whatsapp.reconnect();
-            STEMSystemApp.LOGGER.ERROR("Whatsapp is no more connected. Try to reconnect");
+            STEMApp.LOGGER.ERROR("Whatsapp is no more connected. Try to reconnect");
             whatsapp.changePresence(true);
         } else {
-            STEMSystemApp.LOGGER.DEBUG("Whatsapp still connected!");
+            STEMApp.LOGGER.DEBUG("Whatsapp still connected!");
             whatsapp.changePresence(true);
         }
         try {

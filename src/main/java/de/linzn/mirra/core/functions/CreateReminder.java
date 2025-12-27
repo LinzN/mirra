@@ -20,7 +20,7 @@ import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
 import de.linzn.mirra.openai.models.FunctionProperties;
-import de.stem.stemSystem.STEMSystemApp;
+import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
 import java.text.ParseException;
@@ -30,7 +30,7 @@ import java.util.Date;
 public class CreateReminder implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
-        STEMSystemApp.LOGGER.CORE(input);
+        STEMApp.LOGGER.CORE(input);
         JSONObject jsonObject = new JSONObject();
         if (identityUser.hasPermission(AiPermissions.CREATE_REMINDER)) {
             jsonObject.put("success", true);
@@ -45,7 +45,7 @@ public class CreateReminder implements IFunctionCall {
                 jsonObject.put("reason", "Error: " + e.getLocalizedMessage());
             }
 
-            STEMSystemApp.LOGGER.CORE(input);
+            STEMApp.LOGGER.CORE(input);
         } else {
             jsonObject.put("success", false);
             jsonObject.put("reason", "No permissions");

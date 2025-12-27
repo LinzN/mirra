@@ -24,7 +24,7 @@ import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
-import de.stem.stemSystem.STEMSystemApp;
+import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
 import java.util.Collection;
@@ -32,7 +32,7 @@ import java.util.Collection;
 public class StatusLight implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
-        STEMSystemApp.LOGGER.CORE(input);
+        STEMApp.LOGGER.CORE(input);
         JSONObject jsonObject = new JSONObject();
         if (identityUser.hasPermission(AiPermissions.STATUS_LIGHT)) {
             jsonObject.put("success", true);
@@ -45,7 +45,7 @@ public class StatusLight implements IFunctionCall {
                             jsonObject.put(device.getDeviceProfile().getName(), mqttSwitch.getDeviceStatus());
                         }
                     } catch (DeviceNotInitializedException e) {
-                        STEMSystemApp.LOGGER.ERROR(e);
+                        STEMApp.LOGGER.ERROR(e);
                     }
                 }
             }

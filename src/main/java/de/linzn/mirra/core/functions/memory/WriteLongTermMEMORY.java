@@ -19,8 +19,8 @@ import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
 import de.linzn.mirra.openai.models.FunctionProperties;
-import de.stem.stemSystem.STEMSystemApp;
-import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
+import de.linzn.stem.STEMApp;
+import de.linzn.stem.modules.databaseModule.DatabaseModule;
 import org.json.JSONObject;
 
 import java.sql.Connection;
@@ -31,12 +31,12 @@ import java.util.Date;
 public class WriteLongTermMEMORY implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
-        STEMSystemApp.LOGGER.CORE(input);
+        STEMApp.LOGGER.CORE(input);
         JSONObject jsonObject = new JSONObject();
         if (identityUser.hasPermission(AiPermissions.LONG_TERM_MEMORY_WRITE)) {
             jsonObject.put("success", true);
             this.writeMemory(input.getString("memory_data_english"));
-            STEMSystemApp.LOGGER.CORE(input);
+            STEMApp.LOGGER.CORE(input);
         } else {
             jsonObject.put("success", false);
             jsonObject.put("reason", "No permissions");
@@ -66,7 +66,7 @@ public class WriteLongTermMEMORY implements IFunctionCall {
     private void writeMemory(String memory_data) {
         java.sql.Date date = new java.sql.Date(new Date().getTime());
 
-        DatabaseModule databaseModule = STEMSystemApp.getInstance().getDatabaseModule();
+        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
 
         try {
             Connection conn = databaseModule.getConnection();
@@ -80,7 +80,7 @@ public class WriteLongTermMEMORY implements IFunctionCall {
 
             databaseModule.releaseConnection(conn);
         } catch (SQLException e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
         }
     }
 

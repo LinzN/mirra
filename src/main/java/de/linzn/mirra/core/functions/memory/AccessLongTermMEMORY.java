@@ -19,8 +19,8 @@ import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
 import de.linzn.mirra.openai.models.FunctionProperties;
-import de.stem.stemSystem.STEMSystemApp;
-import de.stem.stemSystem.modules.databaseModule.DatabaseModule;
+import de.linzn.stem.STEMApp;
+import de.linzn.stem.modules.databaseModule.DatabaseModule;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -33,12 +33,12 @@ import java.util.Date;
 public class AccessLongTermMEMORY implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
-        STEMSystemApp.LOGGER.CORE(input);
+        STEMApp.LOGGER.CORE(input);
         JSONObject jsonObject = new JSONObject();
         if (identityUser.hasPermission(AiPermissions.LONG_TERM_MEMORY_ACCESS)) {
             jsonObject.put("success", true);
             jsonObject.put("memory_search_result_jsonArray", accessMemory(input.getJSONArray("keywordArray_english")));
-            STEMSystemApp.LOGGER.CORE(input);
+            STEMApp.LOGGER.CORE(input);
         } else {
             jsonObject.put("success", false);
             jsonObject.put("reason", "No permissions");
@@ -71,7 +71,7 @@ public class AccessLongTermMEMORY implements IFunctionCall {
 
     private JSONArray accessMemory(JSONArray keywords) {
 
-        DatabaseModule databaseModule = STEMSystemApp.getInstance().getDatabaseModule();
+        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
         JSONArray jsonArray = new JSONArray();
 
         try {
@@ -89,7 +89,7 @@ public class AccessLongTermMEMORY implements IFunctionCall {
                 }
             }
             String query = "SELECT * FROM plugin_mirra_longterm_memory " + likeString + "ORDER BY id DESC LIMIT 10";
-            STEMSystemApp.LOGGER.CONFIG(query);
+            STEMApp.LOGGER.CONFIG(query);
             Statement st = conn.createStatement();
             ResultSet rs = st.executeQuery(query);
 
@@ -107,7 +107,7 @@ public class AccessLongTermMEMORY implements IFunctionCall {
 
             databaseModule.releaseConnection(conn);
         } catch (SQLException e) {
-            STEMSystemApp.LOGGER.ERROR(e);
+            STEMApp.LOGGER.ERROR(e);
         }
         return jsonArray;
     }

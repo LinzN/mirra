@@ -20,7 +20,7 @@ import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
 import de.linzn.mirra.openai.models.FunctionProperties;
-import de.stem.stemSystem.STEMSystemApp;
+import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
 public class CreateImage implements IFunctionCall {
@@ -29,7 +29,7 @@ public class CreateImage implements IFunctionCall {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("imageDescription", input.getString("imageDescription"));
         if (identityUser.hasPermission(AiPermissions.CREATE_IMAGE)) {
-            STEMSystemApp.LOGGER.CORE(input);
+            STEMApp.LOGGER.CORE(input);
             String url = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestImageCompletion(input.getString("imageDescription"));
             jsonObject.put("success", true);
             jsonObject.put("imageURL", url);

@@ -17,8 +17,8 @@ import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.events.MirraReminderEvent;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.openai.IFunctionCall;
-import de.stem.stemSystem.STEMSystemApp;
-import de.stem.stemSystem.modules.eventModule.handler.StemEventHandler;
+import de.linzn.stem.STEMApp;
+import de.linzn.stem.modules.eventModule.handler.StemEventHandler;
 import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
@@ -27,9 +27,9 @@ public class MirraReminderListener {
 
     @StemEventHandler()
     public void onMirraReminderEvent(MirraReminderEvent mirraReminderEvent) {
-        STEMSystemApp.LOGGER.CORE("Reminder EVENT Triggered!");
-        STEMSystemApp.LOGGER.CORE(mirraReminderEvent.getMirraReminder().getContent());
-        STEMSystemApp.LOGGER.CORE(new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(mirraReminderEvent.getMirraReminder().getReminderDate()));
+        STEMApp.LOGGER.CORE("Reminder EVENT Triggered!");
+        STEMApp.LOGGER.CORE(mirraReminderEvent.getMirraReminder().getContent());
+        STEMApp.LOGGER.CORE(new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(mirraReminderEvent.getMirraReminder().getReminderDate()));
 
         IFunctionCall iFunction = MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().getFunction("trigger_reminder");
         JSONObject jsonObject = new JSONObject();
@@ -43,7 +43,7 @@ public class MirraReminderListener {
         if (mirraReminderEvent.getMirraReminder().getUserToken().getSource() == TokenSource.DISCORD) {
             MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(mirraReminderEvent.getMirraReminder().getUserToken().getName()).complete().openPrivateChannel().complete().sendMessage(reminder).complete();
         } else if (mirraReminderEvent.getMirraReminder().getUserToken().getSource() == TokenSource.WHATSAPP) {
-            STEMSystemApp.LOGGER.CORE("Jid reminder:" + Jid.of(mirraReminderEvent.getMirraReminder().getUserToken().getName()));
+            STEMApp.LOGGER.CORE("Jid reminder:" + Jid.of(mirraReminderEvent.getMirraReminder().getUserToken().getName()));
             MirraPlugin.mirraPlugin.getWhatsappManager().getWhatsapp().sendChatMessage(Jid.of(mirraReminderEvent.getMirraReminder().getUserToken().getName()), reminder);
         }
     }
