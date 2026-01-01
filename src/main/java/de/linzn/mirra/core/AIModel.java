@@ -28,6 +28,8 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -143,7 +145,7 @@ public class AIModel {
             }
         } catch (Exception e) {
             STEMApp.LOGGER.ERROR(e);
-            result = new ChatMessage("An error was catch in kernel stacktrace! Please check STEM logs for more information! \n" + e.getMessage(), ChatRole.ASSISTANT);
+            result = new ChatMessage("An error was catch in kernel stacktrace! Please check STEM logs for more information! \n" + generateStacktrace(e), ChatRole.ASSISTANT);
         }
 
         return result.getContent();
@@ -162,12 +164,11 @@ public class AIModel {
             List<ImageGenerationData> results = imageGenerations.getData();
             URL openaiImageUrl = new URL(results.get(0).getUrl());
 
-            File tempDirectory = new File(MirraPlugin.mirraPlugin.getDataFolder(), "temp");
+            File tempDirectory = new File(MirraPlugin.mirraPlugin.getTempFolder(), "cloudUpload");
             if (!tempDirectory.exists()) {
                 tempDirectory.mkdir();
             }
-
-            File tempFile = new File(tempDirectory, "picture.png");
+            File tempFile = Files.createTempFile(tempDirectory.toPath(), "openai_", ".png").toFile();
             InputStream in = openaiImageUrl.openStream();
             Files.copy(in, Paths.get(tempFile.getPath()), StandardCopyOption.REPLACE_EXISTING);
 
@@ -181,7 +182,7 @@ public class AIModel {
 
         } catch (Exception e) {
             STEMApp.LOGGER.ERROR(e);
-            url = new StringBuilder("An error was catch in kernel stacktrace! Please check STEM logs for more information!");
+            url = new StringBuilder("An error was catch in kernel stacktrace! Please check STEM logs for more information!\n" + generateStacktrace(e));
         }
 
         return url.toString();
@@ -258,7 +259,7 @@ public class AIModel {
             }
         } catch (Exception e) {
             STEMApp.LOGGER.ERROR(e);
-            result = new ChatMessage("An error was catch in kernel stacktrace! Please check STEM logs for more information! \n" + e.getMessage(), ChatRole.ASSISTANT);
+            result = new ChatMessage("An error was catch in kernel stacktrace! Please check STEM logs for more information! \n" + generateStacktrace(e), ChatRole.ASSISTANT);
         }
         return result.getContent();
     }
@@ -273,6 +274,16 @@ public class AIModel {
 
         input.add(jsonObject.toString());
         return input;
+    }
+
+    public String generateStacktrace(Exception e){
+        StringBuilder sb = new StringBuilder();
+        for (StackTraceElement element : e.getStackTrace()) {
+            sb.append(element.toString());
+            sb.append("\n");
+        }
+        String stackTrace = sb.toString(); // stack trace as a string
+        return stackTrace;
     }
 
 }
