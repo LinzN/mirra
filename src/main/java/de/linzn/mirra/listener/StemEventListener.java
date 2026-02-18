@@ -13,7 +13,7 @@
 package de.linzn.mirra.listener;
 
 
-import com.github.auties00.cobalt.model.jid.Jid;
+import de.linzn.evolutionApiJava.api.Jid;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.stem.STEMApp;
 import de.linzn.stem.modules.eventModule.handler.StemEventHandler;
@@ -29,7 +29,7 @@ public class StemEventListener {
         InformationBlock informationBlock = informationEvent.getInformationBlock();
         if (informationBlock.hasIntent(InformationIntent.NOTIFY_USER)) {
             try {
-                MirraPlugin.mirraPlugin.getWhatsappManager().getWhatsapp().sendChatMessage(Jid.of(MirraPlugin.mirraPlugin.getWhatsappManager().defaultJID), informationBlock.getLongDescription());
+                MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().sendTextMessage(new Jid(MirraPlugin.mirraPlugin.getWhatsappManager().defaultJID), informationBlock.getLongDescription());
             } catch (Exception e) {
                 STEMApp.LOGGER.ERROR(e);
             }

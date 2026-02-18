@@ -113,9 +113,9 @@
             <type>jar</type>
         </dependency>
         <dependency>
-            <groupId>com.github.auties00</groupId>
-            <artifactId>cobalt</artifactId>
-            <version>0.1.0</version>
+            <groupId>de.linzn</groupId>
+            <artifactId>evolution-api-java</artifactId>
+            <version>0.0.1</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
