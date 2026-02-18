@@ -37,7 +37,7 @@ public class OnNewChatMessageListener implements DataListener {
     @Override
     public void onReceive(EventType eventType, JSONObject data) {
         if (eventType.equals(EventType.MESSAGES_UPSERT)) {
-            if(data.getJSONObject("key").getBoolean("fromMe")) {
+            if(!data.getJSONObject("key").getBoolean("fromMe")) {
                 Jid senderJid = new Jid(data.getJSONObject("key").getString("remoteJid"));
 
                 String senderName = data.getString("pushName");
