@@ -37,11 +37,15 @@ public class OnNewChatMessageListener implements DataListener {
     @Override
     public void onReceive(EventType eventType, JSONObject data) {
         if (eventType.equals(EventType.MESSAGES_UPSERT)) {
-            Jid senderJid = new Jid(data.getJSONObject("key").getString("remoteJid"));
+            if(data.getJSONObject("key").getBoolean("fromMe")) {
+                Jid senderJid = new Jid(data.getJSONObject("key").getString("remoteJid"));
 
-            String senderName = data.getString("pushName");
-            String content = data.getJSONObject("message").getString("conversation");
-            assignGPTModel(senderName, content, senderJid);
+                String senderName = data.getString("pushName");
+                String content = data.getJSONObject("message").getString("conversation");
+                assignGPTModel(senderName, content, senderJid);
+            } else {
+                STEMApp.LOGGER.CORE("Message from AI self?");
+            }
         }
     }
 
