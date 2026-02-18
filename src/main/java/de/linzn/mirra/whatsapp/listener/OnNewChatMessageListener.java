@@ -12,7 +12,6 @@
 
 package de.linzn.mirra.whatsapp.listener;
 
-import com.sun.nio.sctp.MessageInfo;
 import de.linzn.evolutionApiJava.DataListener;
 import de.linzn.evolutionApiJava.EvolutionApi;
 import de.linzn.evolutionApiJava.api.Jid;
@@ -31,13 +30,13 @@ public class OnNewChatMessageListener implements DataListener {
 
     private EvolutionApi evolutionApi;
 
-    public OnNewChatMessageListener(EvolutionApi evolutionApi){
+    public OnNewChatMessageListener(EvolutionApi evolutionApi) {
         this.evolutionApi = evolutionApi;
     }
 
     @Override
     public void onReceive(EventType eventType, JSONObject data) {
-        if(eventType.equals(EventType.MESSAGES_UPSERT)) {
+        if (eventType.equals(EventType.MESSAGES_UPSERT)) {
             Jid senderJid = new Jid(data.getJSONObject("key").getString("remoteJid"));
 
             String senderName = data.getString("pushName");
@@ -47,19 +46,25 @@ public class OnNewChatMessageListener implements DataListener {
     }
 
     private void assignGPTModel(String sender, String content, Jid identifier) {
-        STEMApp.LOGGER.INFO("Receive Whatsapp input for AI model");
-            UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
-            IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
-            if (identityUser instanceof IdentityGuest) {
-                ((IdentityGuest) identityUser).setGuestName(sender);
-            }
-            List<String> input = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().buildMessageBlock(identityUser.getIdentityName(), content, userToken.getSource().name());
-            String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, userToken, sender);
-            STEMApp.LOGGER.INFO("Response fom AI model received.");
-            STEMApp.LOGGER.CORE(chatMessage);
-            STEMApp.LOGGER.CORE("Jid text:" + identifier);
-        evolutionApi.sendTextMessage(identifier, chatMessage);
 
+        STEMApp.getInstance().getScheduler().runTask(MirraPlugin.mirraPlugin, () -> {
+            evolutionApi.SetOnlineOffline(true);
+            evolutionApi.sendTypingPresence(identifier, 3000);
+        });
+
+        STEMApp.LOGGER.INFO("Receive Whatsapp input for AI model");
+        UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
+        IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
+        if (identityUser instanceof IdentityGuest) {
+            ((IdentityGuest) identityUser).setGuestName(sender);
+        }
+        List<String> input = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().buildMessageBlock(identityUser.getIdentityName(), content, userToken.getSource().name());
+        String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, userToken, sender);
+        STEMApp.LOGGER.INFO("Response fom AI model received.");
+        STEMApp.LOGGER.CORE(chatMessage);
+        STEMApp.LOGGER.CORE("Jid text:" + identifier);
+        evolutionApi.sendTextMessage(identifier, chatMessage);
+        evolutionApi.SetOnlineOffline(true);
     }
 }
 

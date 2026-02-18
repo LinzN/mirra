@@ -22,12 +22,14 @@ import de.linzn.mirra.openai.models.FunctionProperties;
 import net.dv8tion.jda.api.entities.Activity;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+
 public class UpdateMirraStatus implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         String newStatus = input.getString("new_status");
         MirraPlugin.mirraPlugin.getDiscordManager().getJda().getPresence().setActivity(Activity.playing(newStatus));
-        //MirraPlugin.mirraPlugin.getWhatsappManager().getWhatsapp().changeAbout(newStatus);
+        MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().CreateStatusStorie(newStatus, MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().getContacts());
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("success", true);
         jsonObject.put("new_status", newStatus);

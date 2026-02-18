@@ -28,8 +28,6 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.InputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -276,7 +274,7 @@ public class AIModel {
         return input;
     }
 
-    public String generateStacktrace(Exception e){
+    public String generateStacktrace(Exception e) {
         StringBuilder sb = new StringBuilder();
         for (StackTraceElement element : e.getStackTrace()) {
             sb.append(element.toString());

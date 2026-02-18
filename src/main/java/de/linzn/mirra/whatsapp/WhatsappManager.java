@@ -24,9 +24,8 @@ import java.util.concurrent.TimeoutException;
 
 public class WhatsappManager {
 
-    public String defaultJID;
-
     private final EvolutionApi evolutionApi;
+    public String defaultJID;
 
     public WhatsappManager() {
         this.defaultJID = MirraPlugin.mirraPlugin.getDefaultConfig().getString("whatsapp.defaultJID", "xxxx");
