@@ -46,13 +46,11 @@ public class OnNewChatMessageListener implements DataListener {
     }
 
     private void assignGPTModel(String sender, String content, Jid identifier) {
-
+        STEMApp.LOGGER.INFO("Receive Whatsapp input for AI model");
         STEMApp.getInstance().getScheduler().runTask(MirraPlugin.mirraPlugin, () -> {
             evolutionApi.SetOnlineOffline(true);
             evolutionApi.sendTypingPresence(identifier, 3000);
         });
-
-        STEMApp.LOGGER.INFO("Receive Whatsapp input for AI model");
         UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
         IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
         if (identityUser instanceof IdentityGuest) {
@@ -64,7 +62,7 @@ public class OnNewChatMessageListener implements DataListener {
         STEMApp.LOGGER.CORE(chatMessage);
         STEMApp.LOGGER.CORE("Jid text:" + identifier);
         evolutionApi.sendTextMessage(identifier, chatMessage);
-        evolutionApi.SetOnlineOffline(true);
+        evolutionApi.SetOnlineOffline(false);
     }
 }
 
