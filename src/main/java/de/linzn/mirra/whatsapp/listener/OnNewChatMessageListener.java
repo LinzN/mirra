@@ -49,7 +49,7 @@ public class OnNewChatMessageListener implements DataListener {
         STEMApp.LOGGER.INFO("Receive Whatsapp input for AI model");
         STEMApp.getInstance().getScheduler().runTask(MirraPlugin.mirraPlugin, () -> {
             evolutionApi.SetOnlineOffline(true);
-            evolutionApi.sendTypingPresence(identifier, 1000);
+            evolutionApi.sendTypingPresence(identifier, 2000);
         });
         UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
         IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
