@@ -14,6 +14,7 @@ package de.linzn.mirra.whatsapp.listener;
 
 import de.linzn.evolutionApiJava.EvolutionApi;
 import de.linzn.evolutionApiJava.api.Jid;
+import de.linzn.evolutionApiJava.api.TextMessage;
 import de.linzn.evolutionApiJava.event.EventPriority;
 import de.linzn.evolutionApiJava.event.EventSettings;
 import de.linzn.evolutionApiJava.event.defaultEvents.NewMessageEvent;
@@ -23,7 +24,6 @@ import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.stem.STEMApp;
-import org.json.JSONObject;
 
 import java.util.List;
 
@@ -37,12 +37,11 @@ public class OnNewChatMessageListener {
 
     @EventSettings(priority = EventPriority.NORMAL)
     public void onNewMessage(NewMessageEvent event) {
-        JSONObject data = event.getMessage();
-            if(!data.getJSONObject("key").getBoolean("fromMe")) {
-                Jid senderJid = new Jid(data.getJSONObject("key").getString("remoteJid"));
-
-                String senderName = data.getString("pushName");
-                String content = data.getJSONObject("message").getString("conversation");
+        TextMessage textMessage = event.textMessage();
+            if(!textMessage.fromMe()) {
+                Jid senderJid = textMessage.remoteJid();
+                String senderName = textMessage.pushName();
+                String content = textMessage.text();
                 assignGPTModel(senderName, content, senderJid);
             } else {
                 STEMApp.LOGGER.CORE("Message from AI self?");
@@ -51,10 +50,10 @@ public class OnNewChatMessageListener {
     }
 
     private void assignGPTModel(String sender, String content, Jid identifier) {
-        STEMApp.LOGGER.INFO("Receive Whatsapp input for AI model");
+        STEMApp.LOGGER.INFO("Input from EvolutionAPI..");
         STEMApp.getInstance().getScheduler().runTask(MirraPlugin.mirraPlugin, () -> {
             evolutionApi.SetOnlineOffline(true);
-            evolutionApi.sendTypingPresence(identifier, 2000);
+            evolutionApi.sendTypingPresence(identifier, 2500);
         });
         UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
         IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
@@ -63,7 +62,7 @@ public class OnNewChatMessageListener {
         }
         List<String> input = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().buildMessageBlock(identityUser.getIdentityName(), content, userToken.getSource().name());
         String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, userToken, sender);
-        STEMApp.LOGGER.INFO("Response fom AI model received.");
+        STEMApp.LOGGER.INFO("Callback from OpenAI rest api...");
         STEMApp.LOGGER.CORE(chatMessage);
         STEMApp.LOGGER.CORE("Jid text:" + identifier);
         evolutionApi.sendTextMessage(identifier, chatMessage);
