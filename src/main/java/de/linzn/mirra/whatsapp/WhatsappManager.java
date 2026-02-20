@@ -13,7 +13,6 @@
 package de.linzn.mirra.whatsapp;
 
 import de.linzn.evolutionApiJava.EvolutionApi;
-import de.linzn.evolutionApiJava.poolMQ.EventType;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.whatsapp.listener.OnNewChatMessageListener;
 import de.linzn.stem.STEMApp;
@@ -39,7 +38,8 @@ public class WhatsappManager {
         MirraPlugin.mirraPlugin.getDefaultConfig().save();
 
         this.evolutionApi = new EvolutionApi(evolutionApiHostname, evolutionApiApiKey, evolutionApiInstance, rabbitMQHostname, rabbitMQUsername, rabbitMQPassword, rabbitMQVirtualHost);
-        this.evolutionApi.registerListener(EventType.MESSAGES_UPSERT, new OnNewChatMessageListener(this.evolutionApi));
+        this.evolutionApi.registerLogger(new EvolutionConvertLogger());
+        this.evolutionApi.getEventHandler().register(new OnNewChatMessageListener(this.evolutionApi));
         try {
             this.evolutionApi.enable();
         } catch (IOException | TimeoutException e) {

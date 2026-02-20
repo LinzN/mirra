@@ -12,10 +12,11 @@
 
 package de.linzn.mirra.whatsapp.listener;
 
-import de.linzn.evolutionApiJava.DataListener;
 import de.linzn.evolutionApiJava.EvolutionApi;
 import de.linzn.evolutionApiJava.api.Jid;
-import de.linzn.evolutionApiJava.poolMQ.EventType;
+import de.linzn.evolutionApiJava.event.EventPriority;
+import de.linzn.evolutionApiJava.event.EventSettings;
+import de.linzn.evolutionApiJava.event.defaultEvents.NewMessageEvent;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.identitySystem.IdentityGuest;
 import de.linzn.mirra.identitySystem.IdentityUser;
@@ -26,17 +27,17 @@ import org.json.JSONObject;
 
 import java.util.List;
 
-public class OnNewChatMessageListener implements DataListener {
+public class OnNewChatMessageListener {
 
-    private EvolutionApi evolutionApi;
+    private final EvolutionApi evolutionApi;
 
     public OnNewChatMessageListener(EvolutionApi evolutionApi) {
         this.evolutionApi = evolutionApi;
     }
 
-    @Override
-    public void onReceive(EventType eventType, JSONObject data) {
-        if (eventType.equals(EventType.MESSAGES_UPSERT)) {
+    @EventSettings(priority = EventPriority.NORMAL)
+    public void onNewMessage(NewMessageEvent event) {
+        JSONObject data = event.getMessage();
             if(!data.getJSONObject("key").getBoolean("fromMe")) {
                 Jid senderJid = new Jid(data.getJSONObject("key").getString("remoteJid"));
 
@@ -46,7 +47,7 @@ public class OnNewChatMessageListener implements DataListener {
             } else {
                 STEMApp.LOGGER.CORE("Message from AI self?");
             }
-        }
+
     }
 
     private void assignGPTModel(String sender, String content, Jid identifier) {
