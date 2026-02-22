@@ -12,7 +12,9 @@
 
 package de.linzn.mirra.listener;
 
-import de.linzn.evolutionApiJava.api.Jid;
+import de.linzn.evolutionApiJava.EvolutionApi;
+import de.linzn.evolutionApiJava.api.JidClient;
+import de.linzn.evolutionApiJava.api.exceptions.InvalidJidClient;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.events.MirraReminderEvent;
 import de.linzn.mirra.identitySystem.TokenSource;
@@ -43,8 +45,13 @@ public class MirraReminderListener {
         if (mirraReminderEvent.getMirraReminder().getUserToken().getSource() == TokenSource.DISCORD) {
             MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(mirraReminderEvent.getMirraReminder().getUserToken().getName()).complete().openPrivateChannel().complete().sendMessage(reminder).complete();
         } else if (mirraReminderEvent.getMirraReminder().getUserToken().getSource() == TokenSource.WHATSAPP) {
-            STEMApp.LOGGER.CORE("Jid reminder:" + new Jid(mirraReminderEvent.getMirraReminder().getUserToken().getName()));
-            MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().sendTextMessage(new Jid(mirraReminderEvent.getMirraReminder().getUserToken().getName()), reminder);
+            try {
+                JidClient jidClient = EvolutionApi.getClientCache().requestOf(mirraReminderEvent.getMirraReminder().getUserToken().getName());
+                STEMApp.LOGGER.CORE("Jid reminder:" + jidClient);
+                MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().getWebApiProvider().sendTextMessage(jidClient, reminder);
+            } catch (InvalidJidClient e) {
+                STEMApp.LOGGER.ERROR(e);
+            }
         }
     }
 }

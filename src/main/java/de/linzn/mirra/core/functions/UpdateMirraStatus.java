@@ -29,7 +29,7 @@ public class UpdateMirraStatus implements IFunctionCall {
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         String newStatus = input.getString("new_status");
         MirraPlugin.mirraPlugin.getDiscordManager().getJda().getPresence().setActivity(Activity.playing(newStatus));
-        MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().CreateStatusStorie(newStatus, MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().getContacts());
+        MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().getWebApiProvider().CreateStatusStorie(newStatus, MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().getWebApiProvider().getContacts());
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("success", true);
         jsonObject.put("new_status", newStatus);

@@ -13,7 +13,7 @@
 package de.linzn.mirra.whatsapp.listener;
 
 import de.linzn.evolutionApiJava.EvolutionApi;
-import de.linzn.evolutionApiJava.api.Jid;
+import de.linzn.evolutionApiJava.api.JidClient;
 import de.linzn.evolutionApiJava.api.TextMessage;
 import de.linzn.evolutionApiJava.event.EventPriority;
 import de.linzn.evolutionApiJava.event.EventSettings;
@@ -39,7 +39,7 @@ public class OnNewChatMessageListener {
     public void onNewMessage(NewMessageEvent event) {
         TextMessage textMessage = event.textMessage();
             if(!textMessage.fromMe()) {
-                Jid senderJid = textMessage.remoteJid();
+                JidClient senderJid = textMessage.remoteClientId();
                 String senderName = textMessage.pushName();
                 String content = textMessage.text();
                 assignGPTModel(senderName, content, senderJid);
@@ -49,11 +49,11 @@ public class OnNewChatMessageListener {
 
     }
 
-    private void assignGPTModel(String sender, String content, Jid identifier) {
+    private void assignGPTModel(String sender, String content, JidClient identifier) {
         STEMApp.LOGGER.INFO("Input from EvolutionAPI..");
         STEMApp.getInstance().getScheduler().runTask(MirraPlugin.mirraPlugin, () -> {
-            evolutionApi.SetOnlineOffline(true);
-            evolutionApi.sendTypingPresence(identifier, 2500);
+            evolutionApi.getWebApiProvider().SetOnlineOffline(true);
+            evolutionApi.getWebApiProvider().sendTypingPresence(identifier, 2500);
         });
         UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
         IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
@@ -65,8 +65,8 @@ public class OnNewChatMessageListener {
         STEMApp.LOGGER.INFO("Callback from OpenAI rest api...");
         STEMApp.LOGGER.CORE(chatMessage);
         STEMApp.LOGGER.CORE("Jid text:" + identifier);
-        evolutionApi.sendTextMessage(identifier, chatMessage);
-        evolutionApi.SetOnlineOffline(false);
+        evolutionApi.getWebApiProvider().sendTextMessage(identifier, chatMessage);
+        evolutionApi.getWebApiProvider().SetOnlineOffline(false);
     }
 }
 

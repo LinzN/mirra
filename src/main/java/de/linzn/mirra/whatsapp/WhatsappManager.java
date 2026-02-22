@@ -37,7 +37,8 @@ public class WhatsappManager {
         String rabbitMQVirtualHost = MirraPlugin.mirraPlugin.getDefaultConfig().getString("rabbitMQ.virtualHost", "/");
         MirraPlugin.mirraPlugin.getDefaultConfig().save();
 
-        this.evolutionApi = new EvolutionApi(evolutionApiHostname, evolutionApiApiKey, evolutionApiInstance, rabbitMQHostname, rabbitMQUsername, rabbitMQPassword, rabbitMQVirtualHost);
+        this.evolutionApi = new EvolutionApi(evolutionApiHostname, evolutionApiApiKey, evolutionApiInstance);
+        this.evolutionApi.setRabbitMQ(rabbitMQHostname, rabbitMQUsername, rabbitMQPassword, rabbitMQVirtualHost);
         this.evolutionApi.registerLogger(new EvolutionConvertLogger());
         this.evolutionApi.getEventHandler().register(new OnNewChatMessageListener(this.evolutionApi));
         try {

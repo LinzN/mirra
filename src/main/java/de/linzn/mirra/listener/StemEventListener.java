@@ -13,7 +13,8 @@
 package de.linzn.mirra.listener;
 
 
-import de.linzn.evolutionApiJava.api.Jid;
+import de.linzn.evolutionApiJava.EvolutionApi;
+import de.linzn.evolutionApiJava.api.JidClient;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.stem.STEMApp;
 import de.linzn.stem.modules.eventModule.handler.StemEventHandler;
@@ -29,7 +30,8 @@ public class StemEventListener {
         InformationBlock informationBlock = informationEvent.getInformationBlock();
         if (informationBlock.hasIntent(InformationIntent.NOTIFY_USER)) {
             try {
-                MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().sendTextMessage(new Jid(MirraPlugin.mirraPlugin.getWhatsappManager().defaultJID), informationBlock.getLongDescription());
+                JidClient jidClient = EvolutionApi.getClientCache().requestOf(MirraPlugin.mirraPlugin.getWhatsappManager().defaultJID);
+                MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().getWebApiProvider().sendTextMessage(jidClient, informationBlock.getLongDescription());
             } catch (Exception e) {
                 STEMApp.LOGGER.ERROR(e);
             }
