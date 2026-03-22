@@ -39,7 +39,7 @@ public class UpdateSocialStatusCaller extends ManualFunctionCaller {
 
     @Override
     public String repeatCronString() {
-        return "0 8 */2 * *";
+        return "0 13 * * *";
     }
 
     @Override
