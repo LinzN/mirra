@@ -12,14 +12,11 @@
 
 package de.linzn.mirra.listener;
 
-import de.linzn.evolutionApiJava.EvolutionApi;
-import de.linzn.evolutionApiJava.api.JidClient;
-import de.linzn.evolutionApiJava.api.exceptions.InvalidJidClient;
 import de.linzn.mirra.MirraPlugin;
+import de.linzn.mirra.core.reminder.MirraReminder;
 import de.linzn.mirra.events.MirraReminderEvent;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.openai.IFunctionCall;
-import de.linzn.stem.STEMApp;
 import de.linzn.stem.modules.eventModule.handler.StemEventHandler;
 import org.json.JSONObject;
 
@@ -27,31 +24,30 @@ import java.text.SimpleDateFormat;
 
 public class MirraReminderListener {
 
+    private final MirraPlugin plugin;
+
+    public MirraReminderListener(MirraPlugin plugin) {
+        this.plugin = plugin;
+    }
+
     @StemEventHandler()
     public void onMirraReminderEvent(MirraReminderEvent mirraReminderEvent) {
-        STEMApp.LOGGER.CORE("Reminder EVENT Triggered!");
-        STEMApp.LOGGER.CORE(mirraReminderEvent.getMirraReminder().getContent());
-        STEMApp.LOGGER.CORE(new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(mirraReminderEvent.getMirraReminder().getReminderDate()));
-
-        IFunctionCall iFunction = MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().getFunction("trigger_reminder");
+        MirraReminder reminder = mirraReminderEvent.getMirraReminder();
+        String datetime = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(reminder.getReminderDate());
+        this.plugin.getPluginLogger().info("Reminder EVENT Triggered! " + datetime);
+        this.plugin.getPluginLogger().debug(reminder.getContent());
+        IFunctionCall iFunction = this.plugin.getAiManager().getFunctionProvider().getFunction("trigger_reminder");
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("reminderStatus", "now");
         jsonObject.put("outputLanguage", "German");
-        jsonObject.put("targetUsername", mirraReminderEvent.getMirraReminder().getIdentityUser().getIdentityName());
-        jsonObject.put("content", mirraReminderEvent.getMirraReminder().getContent());
-        jsonObject.put("datetime", new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(mirraReminderEvent.getMirraReminder().getReminderDate()));
-        String reminder = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestStandaloneFunctionCall(iFunction.functionName(), jsonObject, mirraReminderEvent.getMirraReminder().getUserToken());
-
-        if (mirraReminderEvent.getMirraReminder().getUserToken().getSource() == TokenSource.DISCORD) {
-            MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(mirraReminderEvent.getMirraReminder().getUserToken().getName()).complete().openPrivateChannel().complete().sendMessage(reminder).complete();
-        } else if (mirraReminderEvent.getMirraReminder().getUserToken().getSource() == TokenSource.WHATSAPP) {
-            try {
-                JidClient jidClient = EvolutionApi.getClientCache().requestOf(mirraReminderEvent.getMirraReminder().getUserToken().getName());
-                STEMApp.LOGGER.CORE("Jid reminder:" + jidClient);
-                MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().getWebApiProvider().sendTextMessage(jidClient, reminder);
-            } catch (InvalidJidClient e) {
-                STEMApp.LOGGER.ERROR(e);
-            }
+        jsonObject.put("targetUsername", reminder.getIdentityUser().getIdentityName());
+        jsonObject.put("content", reminder.getContent());
+        jsonObject.put("datetime", datetime);
+        String text = this.plugin.getAiManager().getDefaultModel().requestStandaloneFunctionCall(iFunction.functionName(), jsonObject, reminder.getUserToken());
+        if (reminder.getUserToken().getSource() == TokenSource.DISCORD) {
+            this.plugin.getDiscordManager().sendPrivateMessage(reminder.getUserToken().getName(), text);
+        } else if (reminder.getUserToken().getSource() == TokenSource.WHATSAPP) {
+            this.plugin.getWhatsappManager().sendTextMessage(reminder.getUserToken().getName(), text);
         }
     }
 }

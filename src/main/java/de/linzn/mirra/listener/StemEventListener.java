@@ -12,42 +12,31 @@
 
 package de.linzn.mirra.listener;
 
-
-import de.linzn.evolutionApiJava.EvolutionApi;
-import de.linzn.evolutionApiJava.api.JidClient;
 import de.linzn.mirra.MirraPlugin;
-import de.linzn.stem.STEMApp;
 import de.linzn.stem.modules.eventModule.handler.StemEventHandler;
 import de.linzn.stem.modules.informationModule.InformationBlock;
 import de.linzn.stem.modules.informationModule.InformationIntent;
 import de.linzn.stem.modules.informationModule.events.InformationEvent;
 
-
 public class StemEventListener {
 
-    @StemEventHandler()
-    public void onInformationEventWhatsapp(InformationEvent informationEvent) {
-        InformationBlock informationBlock = informationEvent.getInformationBlock();
-        if (informationBlock.hasIntent(InformationIntent.NOTIFY_USER)) {
-            try {
-                JidClient jidClient = EvolutionApi.getClientCache().requestOf(MirraPlugin.mirraPlugin.getWhatsappManager().defaultJID);
-                MirraPlugin.mirraPlugin.getWhatsappManager().getEvolutionApi().getWebApiProvider().sendTextMessage(jidClient, informationBlock.getLongDescription());
-            } catch (Exception e) {
-                STEMApp.LOGGER.ERROR(e);
-            }
+    private final MirraPlugin plugin;
 
-        }
+    public StemEventListener(MirraPlugin plugin) {
+        this.plugin = plugin;
     }
 
     @StemEventHandler()
-    public void onInformationEventDiscord(InformationEvent informationEvent) {
+    public void onInformationEvent(InformationEvent informationEvent) {
         InformationBlock informationBlock = informationEvent.getInformationBlock();
-        if (informationBlock.hasIntent(InformationIntent.NOTIFY_USER)) {
-            try {
-                MirraPlugin.mirraPlugin.getDiscordManager().getJda().retrieveUserById(MirraPlugin.mirraPlugin.getDiscordManager().defaultUID).complete().openPrivateChannel().complete().sendMessage(informationBlock.getLongDescription()).complete();
-            } catch (Exception e) {
-                STEMApp.LOGGER.ERROR(e);
-            }
+        if (!informationBlock.hasIntent(InformationIntent.NOTIFY_USER)) {
+            return;
         }
+        String message = informationBlock.getLongDescription();
+        /* network calls, do not block the event bus */
+        this.plugin.getStemApi().scheduler().runAsync(() -> {
+            this.plugin.getWhatsappManager().sendTextMessage(this.plugin.getWhatsappManager().defaultJID, message);
+            this.plugin.getDiscordManager().sendPrivateMessage(this.plugin.getDiscordManager().defaultUID, message);
+        });
     }
 }

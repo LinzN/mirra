@@ -17,18 +17,15 @@ import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.openJL.pairs.Pair;
-import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
 import java.util.concurrent.TimeUnit;
 
-
 public class UpdateSocialStatusCaller extends ManualFunctionCaller {
-
 
     @Override
     public void call() {
-        STEMApp.LOGGER.CORE("Change social status trigger");
+        MirraPlugin.mirraPlugin.getPluginLogger().info("Change social status trigger");
         UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken("stem_internal_handler", TokenSource.INTERNAL);
         IFunctionCall iFunction = MirraPlugin.mirraPlugin.getAiManager().getFunctionProvider().getFunction("trigger_manual_function_call");
         JSONObject jsonObject = new JSONObject();

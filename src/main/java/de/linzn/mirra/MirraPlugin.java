@@ -12,7 +12,6 @@
 
 package de.linzn.mirra;
 
-
 import de.linzn.mirra.core.AIManager;
 import de.linzn.mirra.core.reminder.ReminderEngine;
 import de.linzn.mirra.discord.DiscordManager;
@@ -20,19 +19,18 @@ import de.linzn.mirra.identitySystem.IdentityManager;
 import de.linzn.mirra.listener.MirraReminderListener;
 import de.linzn.mirra.listener.StemEventListener;
 import de.linzn.mirra.whatsapp.WhatsappManager;
-import de.linzn.stem.STEMApp;
 import de.linzn.stem.modules.pluginModule.STEMPlugin;
 
 
 public class MirraPlugin extends STEMPlugin {
 
     public static MirraPlugin mirraPlugin;
+
     private IdentityManager identityManager;
     private WhatsappManager whatsappManager;
     private DiscordManager discordManager;
     private AIManager aiManager;
     private ReminderEngine reminderEngine;
-
 
     public MirraPlugin() {
         mirraPlugin = this;
@@ -40,18 +38,22 @@ public class MirraPlugin extends STEMPlugin {
 
     @Override
     public void onEnable() {
-        this.aiManager = new AIManager();
-        this.identityManager = new IdentityManager();
-        this.whatsappManager = new WhatsappManager();
-        this.discordManager = new DiscordManager();
-        this.reminderEngine = new ReminderEngine();
-        STEMApp.getInstance().getEventModule().getStemEventBus().register(new StemEventListener());
-        STEMApp.getInstance().getEventModule().getStemEventBus().register(new MirraReminderListener());
+        this.aiManager = new AIManager(this);
+        this.identityManager = new IdentityManager(this);
+        this.whatsappManager = new WhatsappManager(this);
+        this.discordManager = new DiscordManager(this);
+        this.reminderEngine = new ReminderEngine(this);
+        /* everything registered through the API is removed again on disable */
+        this.getStemApi().events().register(new StemEventListener(this));
+        this.getStemApi().events().register(new MirraReminderListener(this));
+        this.aiManager.startManualFunctionCallers();
     }
-
 
     @Override
     public void onDisable() {
+        if (this.discordManager != null) {
+            this.discordManager.shutdown();
+        }
     }
 
     public AIManager getAiManager() {

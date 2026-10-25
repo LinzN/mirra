@@ -13,26 +13,22 @@
 package de.linzn.mirra.core.functions;
 
 import com.azure.ai.openai.models.FunctionDefinition;
+import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
-import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
-import java.util.Date;
-import java.util.concurrent.TimeUnit;
-
 public class StemStatus implements IFunctionCall {
+
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         JSONObject jsonObject = new JSONObject();
         if (identityUser.hasPermission(AiPermissions.STATUS_STEM)) {
-            Date date = STEMApp.getInstance().getUptimeDate();
-            long diff = TimeUnit.MILLISECONDS.toSeconds(new Date().getTime() - date.getTime());
-            String uptime = String.format("%d days, %02d:%02d:%02d", (diff / (3600 * 24)), diff / 3600, (diff % 3600) / 60, (diff % 60));
-
+            long diff = MirraPlugin.mirraPlugin.getStemApi().system().getUptime().toSeconds();
+            String uptime = String.format("%d days, %02d:%02d:%02d", diff / 86400, (diff % 86400) / 3600, (diff % 3600) / 60, diff % 60);
             jsonObject.put("success", true);
             jsonObject.put("uptime", uptime);
             jsonObject.put("status", "healthy");

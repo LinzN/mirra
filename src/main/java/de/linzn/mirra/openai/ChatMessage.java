@@ -67,15 +67,15 @@ public class ChatMessage {
             content = null;
         } else {
             if (chatRequestMessage.getRole() == ChatRole.ASSISTANT) {
-                content = ((ChatRequestAssistantMessage) chatRequestMessage).getContent().toString();
+                content = asString(((ChatRequestAssistantMessage) chatRequestMessage).getContent());
             } else if (chatRequestMessage.getRole() == ChatRole.USER) {
-                content = ((ChatRequestUserMessage) chatRequestMessage).getContent().toString();
+                content = asString(((ChatRequestUserMessage) chatRequestMessage).getContent());
             } else if (chatRequestMessage.getRole() == ChatRole.SYSTEM) {
-                content = ((ChatRequestSystemMessage) chatRequestMessage).getContent().toString();
+                content = asString(((ChatRequestSystemMessage) chatRequestMessage).getContent());
             } else if (chatRequestMessage.getRole() == ChatRole.DEVELOPER) {
-                content = ((ChatRequestDeveloperMessage) chatRequestMessage).getContent().toString();
+                content = asString(((ChatRequestDeveloperMessage) chatRequestMessage).getContent());
             } else if (chatRequestMessage.getRole() == ChatRole.TOOL) {
-                content = ((ChatRequestToolMessage) chatRequestMessage).getContent().toString();
+                content = asString(((ChatRequestToolMessage) chatRequestMessage).getContent());
             } else if (chatRequestMessage.getRole() == ChatRole.FUNCTION) {
                 content = ((ChatRequestFunctionMessage) chatRequestMessage).getContent();
             } else {
@@ -83,6 +83,11 @@ public class ChatMessage {
             }
         }
         return content;
+    }
+
+    /* the SDK returns null content for assistant messages without text */
+    private static String asString(Object content) {
+        return content == null ? null : content.toString();
     }
 
     public ChatRequestMessage convertToRequestMessage() {

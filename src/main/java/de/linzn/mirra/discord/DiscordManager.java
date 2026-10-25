@@ -14,44 +14,122 @@ package de.linzn.mirra.discord;
 
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.discord.listener.DiscordReceiveListener;
-import de.linzn.stem.STEMApp;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class DiscordManager {
-    public String defaultUID;
-    private JDA jda;
 
-    public DiscordManager() {
-        String token = MirraPlugin.mirraPlugin.getDefaultConfig().getString("discord.token", "xxxx");
-        this.defaultUID = MirraPlugin.mirraPlugin.getDefaultConfig().getString("discord.defaultUID", "xxxx");
-        MirraPlugin.mirraPlugin.getDefaultConfig().save();
+    /* discord allows 2000 characters per message */
+    private static final int MAX_MESSAGE_LENGTH = 1900;
 
-        STEMApp.getInstance().getScheduler().runTask(MirraPlugin.mirraPlugin, () -> {
+    private final MirraPlugin plugin;
+    public final String defaultUID;
+    private volatile JDA jda;
+    private volatile boolean shutdown;
+
+    public DiscordManager(MirraPlugin plugin) {
+        this.plugin = plugin;
+        String token = plugin.getDefaultConfig().getString("discord.token", "xxxx");
+        this.defaultUID = plugin.getDefaultConfig().getString("discord.defaultUID", "xxxx");
+        plugin.getDefaultConfig().save();
+        if (token == null || token.isBlank() || token.equals("xxxx")) {
+            plugin.getPluginLogger().warning("No discord.token configured, Discord is not started");
+            return;
+        }
+        plugin.getStemApi().scheduler().runAsync(() -> this.login(token));
+    }
+
+    private void login(String token) {
+        JDA newJda;
+        try {
             JDABuilder jdaBuilder = JDABuilder.createLight(token);
             jdaBuilder.setAutoReconnect(true);
             jdaBuilder.enableIntents(GatewayIntent.MESSAGE_CONTENT);
-            jdaBuilder.addEventListeners(new DiscordReceiveListener());
-            jda = jdaBuilder.build();
-            try {
-                jda.awaitReady();
-                STEMApp.LOGGER.CORE("Login Discord API success!");
-            } catch (InterruptedException e) {
-                STEMApp.LOGGER.ERROR("Login Discord API failed!");
-                STEMApp.LOGGER.ERROR(e);
-            }
-            jda.getPresence().setActivity(Activity.playing("Working on MirraNET"));
-            jda.updateCommands().addCommands(
-                    Commands.slash("ping", "Pong")
-            ).queue();
-        });
+            jdaBuilder.addEventListeners(new DiscordReceiveListener(this.plugin, this));
+            newJda = jdaBuilder.build();
+        } catch (Exception e) {
+            this.plugin.getPluginLogger().error("Login Discord API failed!", e);
+            return;
+        }
+        if (this.shutdown) {
+            newJda.shutdownNow();
+            return;
+        }
+        this.jda = newJda;
+        try {
+            newJda.awaitReady();
+            this.plugin.getPluginLogger().info("Login Discord API success!");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            this.plugin.getPluginLogger().error("Login Discord API interrupted!");
+            return;
+        }
+        newJda.getPresence().setActivity(Activity.playing("Working on MirraNET"));
+        newJda.updateCommands().addCommands(
+                Commands.slash("ping", "Pong")
+        ).queue();
     }
 
+    public void shutdown() {
+        this.shutdown = true;
+        JDA current = this.jda;
+        this.jda = null;
+        if (current != null) {
+            current.shutdownNow();
+        }
+    }
 
+    /**
+     * @return the JDA instance or null while not logged in
+     */
     public JDA getJda() {
         return jda;
+    }
+
+    /**
+     * Sets the bot activity, ignored while not logged in.
+     */
+    public void setActivity(String status) {
+        JDA current = this.jda;
+        if (current != null) {
+            current.getPresence().setActivity(Activity.playing(status));
+        }
+    }
+
+    /**
+     * Sends a private message, split into several messages if it is too long. Asynchronous.
+     */
+    public void sendPrivateMessage(String userId, String message) {
+        JDA current = this.jda;
+        if (current == null || userId == null || message == null || message.isEmpty()) {
+            this.plugin.getPluginLogger().warning("Discord not ready, private message dropped");
+            return;
+        }
+        current.retrieveUserById(userId).queue(
+                user -> user.openPrivateChannel().queue(
+                        channel -> this.sendMessage(channel, message),
+                        error -> this.plugin.getPluginLogger().error("Unable to open private channel to " + userId, error)),
+                error -> this.plugin.getPluginLogger().error("Unable to find discord user " + userId, error));
+    }
+
+    public void sendMessage(MessageChannel channel, String message) {
+        for (String part : split(message)) {
+            channel.sendMessage(part).queue(null, error -> this.plugin.getPluginLogger().error("Unable to send discord message", error));
+        }
+    }
+
+    private static List<String> split(String message) {
+        List<String> parts = new ArrayList<>();
+        for (int start = 0; start < message.length(); start += MAX_MESSAGE_LENGTH) {
+            parts.add(message.substring(start, Math.min(message.length(), start + MAX_MESSAGE_LENGTH)));
+        }
+        return parts;
     }
 }

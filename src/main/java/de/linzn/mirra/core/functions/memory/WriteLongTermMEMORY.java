@@ -13,33 +13,33 @@
 package de.linzn.mirra.core.functions.memory;
 
 import com.azure.ai.openai.models.FunctionDefinition;
+import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
 import de.linzn.mirra.openai.models.FunctionProperties;
-import de.linzn.stem.STEMApp;
-import de.linzn.stem.modules.databaseModule.DatabaseModule;
 import org.json.JSONObject;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.Date;
 
 public class WriteLongTermMEMORY implements IFunctionCall {
+
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
-        STEMApp.LOGGER.CORE(input);
+        MirraPlugin.mirraPlugin.getPluginLogger().debug("Write long term memory: " + input);
         JSONObject jsonObject = new JSONObject();
-        if (identityUser.hasPermission(AiPermissions.LONG_TERM_MEMORY_WRITE)) {
-            jsonObject.put("success", true);
-            this.writeMemory(input.getString("memory_data_english"));
-            STEMApp.LOGGER.CORE(input);
-        } else {
+        String memoryData = input.optString("memory_data_english", "").trim();
+        if (!identityUser.hasPermission(AiPermissions.LONG_TERM_MEMORY_WRITE)) {
             jsonObject.put("success", false);
             jsonObject.put("reason", "No permissions");
+        } else if (memoryData.isEmpty()) {
+            jsonObject.put("success", false);
+            jsonObject.put("reason", "No memory data");
+        } else {
+            jsonObject.put("success", this.writeMemory(memoryData));
         }
         return jsonObject;
     }
@@ -63,25 +63,20 @@ public class WriteLongTermMEMORY implements IFunctionCall {
         return "write_long_term_memory";
     }
 
-    private void writeMemory(String memory_data) {
-        java.sql.Date date = new java.sql.Date(new Date().getTime());
-
-        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
-
+    private boolean writeMemory(String memory_data) {
+        java.sql.Date date = new java.sql.Date(System.currentTimeMillis());
         try {
-            Connection conn = databaseModule.getConnection();
-
-            String query = "INSERT INTO plugin_mirra_longterm_memory (memory_data, date)"
-                    + " VALUES (?, ?)";
-            PreparedStatement preparedStmt = conn.prepareStatement(query);
-            preparedStmt.setString(1, memory_data);
-            preparedStmt.setDate(2, date);
-            preparedStmt.execute();
-
-            databaseModule.releaseConnection(conn);
+            return MirraPlugin.mirraPlugin.getStemApi().data().withConnection(conn -> {
+                try (PreparedStatement preparedStmt = conn.prepareStatement("INSERT INTO plugin_mirra_longterm_memory (memory_data, date) VALUES (?, ?)")) {
+                    preparedStmt.setString(1, memory_data);
+                    preparedStmt.setDate(2, date);
+                    preparedStmt.execute();
+                    return true;
+                }
+            });
         } catch (SQLException e) {
-            STEMApp.LOGGER.ERROR(e);
+            MirraPlugin.mirraPlugin.getPluginLogger().error("Unable to write long term memory", e);
+            return false;
         }
     }
-
 }

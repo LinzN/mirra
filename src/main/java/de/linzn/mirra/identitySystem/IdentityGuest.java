@@ -14,17 +14,19 @@ package de.linzn.mirra.identitySystem;
 
 public class IdentityGuest extends IdentityUser {
 
-    private String guestName;
+    private volatile String guestName;
 
     public IdentityGuest(UserToken userToken) {
         super("Guest");
-        this.assignUserToken(userToken);
+        if (userToken != null) {
+            this.assignUserToken(userToken);
+        }
         this.addPermission(AiPermissions.STATUS_STEM);
     }
 
     @Override
     public String getIdentityName() {
-        return guestName;
+        return guestName != null ? guestName : super.getIdentityName();
     }
 
     public void setGuestName(String guestName) {

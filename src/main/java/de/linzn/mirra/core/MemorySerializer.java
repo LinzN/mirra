@@ -19,50 +19,65 @@ import com.azure.ai.openai.models.FunctionCall;
 import com.azure.json.JsonProviders;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.ChatMessage;
-import de.linzn.stem.STEMApp;
-import de.linzn.stem.modules.databaseModule.DatabaseModule;
+import de.linzn.stem.modules.pluginModule.STEMPlugin;
 
 import java.io.IOException;
-import java.sql.*;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Date;
 import java.util.LinkedList;
 
+/**
+ * Short term chat memory of one user. Every message is also stored in the database.
+ * Not thread safe, callers synchronize on the instance.
+ */
 public class MemorySerializer {
 
+    /* messages sent to the model */
+    private static final int CONTEXT_SIZE = 20;
+    /* messages kept in RAM, older ones only stay in the database */
+    private static final int MAX_MEMORY = 50;
+
+    private final STEMPlugin plugin;
     private final UserToken userToken;
     private final LinkedList<ChatMessage> dataMemory;
     private final AIModel aiModel;
 
-    public MemorySerializer(AIModel aiModel, UserToken userToken) {
+    public MemorySerializer(STEMPlugin plugin, AIModel aiModel, UserToken userToken) {
+        this.plugin = plugin;
         this.aiModel = aiModel;
         this.userToken = userToken;
         this.dataMemory = new LinkedList<>();
         this.remindFromDatabase();
     }
 
-
     public void memorizeData(ChatMessage chatMessage) {
         this.dataMemory.addLast(chatMessage);
+        while (this.dataMemory.size() > MAX_MEMORY) {
+            this.dataMemory.removeFirst();
+        }
         this.storeDatabase(chatMessage);
     }
 
+    /**
+     * @return the last messages for the model; never starts with a function result whose call was cut off
+     */
     public LinkedList<ChatMessage> accessMemory() {
         LinkedList<ChatMessage> trimmedMemory = new LinkedList<>(this.dataMemory);
-        if (this.dataMemory.size() > 20) {
-            trimmedMemory = new LinkedList<>(trimmedMemory.subList(trimmedMemory.size() - 20, trimmedMemory.size()));
+        while (trimmedMemory.size() > CONTEXT_SIZE) {
+            trimmedMemory.removeFirst();
+        }
+        while (!trimmedMemory.isEmpty() && trimmedMemory.getFirst().getRole() == ChatRole.FUNCTION) {
+            trimmedMemory.removeFirst();
         }
         return trimmedMemory;
     }
 
-
     private void storeDatabase(ChatMessage chatMessage) {
         java.sql.Date date = new java.sql.Date(new Date().getTime());
-
-        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
-
         String functionName = null;
         String functionJson = null;
-
         if (chatMessage.getFunctionCall() != null) {
             functionName = chatMessage.getFunctionCall().getName();
             if (chatMessage.getFunctionCall().getArguments() != null) {
@@ -74,73 +89,73 @@ public class MemorySerializer {
         } else if (chatMessage.getRole() == ChatRole.FUNCTION) {
             functionName = ((ChatRequestFunctionMessage) chatMessage.convertToRequestMessage()).getName();
         }
-
+        final String finalFunctionName = functionName;
+        final String finalFunctionJson = functionJson;
         try {
-            Connection conn = databaseModule.getConnection();
-
-            String query = " INSERT INTO plugin_mirra_memory (model, identity, role, content, date, function_name, function_json)"
-                    + " VALUES (?, ?, ?, ?, ?, ?, ?)";
-            PreparedStatement preparedStmt = conn.prepareStatement(query);
-            preparedStmt.setString(1, this.aiModel.getName());
-            preparedStmt.setString(2, this.userToken.getName());
-            preparedStmt.setString(3, chatMessage.getRole().getValue());
-            preparedStmt.setString(4, chatMessage.getContent());
-            preparedStmt.setDate(5, date);
-            preparedStmt.setString(6, functionName);
-            preparedStmt.setString(7, functionJson);
-            preparedStmt.execute();
-
-            databaseModule.releaseConnection(conn);
+            this.plugin.getStemApi().data().withConnection(conn -> {
+                String query = "INSERT INTO plugin_mirra_memory (model, identity, role, content, date, function_name, function_json)"
+                        + " VALUES (?, ?, ?, ?, ?, ?, ?)";
+                try (PreparedStatement preparedStmt = conn.prepareStatement(query)) {
+                    preparedStmt.setString(1, this.aiModel.getName());
+                    preparedStmt.setString(2, this.userToken.getName());
+                    preparedStmt.setString(3, chatMessage.getRole().getValue());
+                    preparedStmt.setString(4, chatMessage.getContent());
+                    preparedStmt.setDate(5, date);
+                    preparedStmt.setString(6, finalFunctionName);
+                    preparedStmt.setString(7, finalFunctionJson);
+                    return preparedStmt.execute();
+                }
+            });
         } catch (SQLException e) {
-            STEMApp.LOGGER.ERROR(e);
+            this.plugin.getPluginLogger().error("Unable to store chat memory", e);
         }
     }
 
     private void remindFromDatabase() {
-
-        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
-
         try {
-            Connection conn = databaseModule.getConnection();
-
-            String query = "SELECT * FROM plugin_mirra_memory WHERE model = '" + this.aiModel.getName() + "' AND identity = '" + this.userToken.getName() + "' ORDER BY id DESC LIMIT 50";
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery(query);
-
-            while (rs.next()) {
-                STEMApp.LOGGER.DEBUG("Loading gptID " + rs.getInt("id") + " from database");
-                String role = rs.getString("role");
-                String content = rs.getString("content");
-                String functionName = rs.getString("function_name");
-                String functionJson = rs.getString("function_json");
-
-                ChatMessage chatMessage = new ChatMessage(content, ChatRole.fromString(role));
-
-                if (functionName != null) {
-
-                    if (chatMessage.getRole() == ChatRole.FUNCTION) {
-                        chatMessage = new ChatMessage(new ChatRequestFunctionMessage(functionName, content));
-                    } else {
-                        ChatRequestAssistantMessage chatRequestAssistantMessage = new ChatRequestAssistantMessage("");
-                        if (functionJson != null) {
-                            try {
-                                FunctionCall functionCall = FunctionCall.fromJson(JsonProviders.createReader(functionJson));
-                                chatRequestAssistantMessage.setFunctionCall(functionCall);
-                            } catch (IOException ignored) {
-                                STEMApp.LOGGER.WARNING("Not possible to convert functionCall");
+            this.plugin.getStemApi().data().withConnection(conn -> {
+                String query = "SELECT * FROM plugin_mirra_memory WHERE model = ? AND identity = ? ORDER BY id DESC LIMIT " + MAX_MEMORY;
+                try (PreparedStatement st = conn.prepareStatement(query)) {
+                    st.setString(1, this.aiModel.getName());
+                    st.setString(2, this.userToken.getName());
+                    try (ResultSet rs = st.executeQuery()) {
+                        while (rs.next()) {
+                            ChatMessage chatMessage = this.readMessage(rs);
+                            if (chatMessage != null) {
+                                this.dataMemory.addFirst(chatMessage);
                             }
                         }
-                        chatMessage = new ChatMessage(chatRequestAssistantMessage);
                     }
                 }
-
-                this.dataMemory.addFirst(chatMessage);
-            }
-
-            databaseModule.releaseConnection(conn);
+                return null;
+            });
         } catch (SQLException e) {
-            STEMApp.LOGGER.ERROR(e);
+            this.plugin.getPluginLogger().error("Unable to load chat memory", e);
         }
+    }
+
+    private ChatMessage readMessage(ResultSet rs) throws SQLException {
+        String role = rs.getString("role");
+        String content = rs.getString("content");
+        String functionName = rs.getString("function_name");
+        String functionJson = rs.getString("function_json");
+        ChatRole chatRole = ChatRole.fromString(role);
+        if (functionName == null) {
+            return content != null ? new ChatMessage(content, chatRole) : null;
+        }
+        if (chatRole == ChatRole.FUNCTION) {
+            return new ChatMessage(new ChatRequestFunctionMessage(functionName, content != null ? content : "{}"));
+        }
+        ChatRequestAssistantMessage chatRequestAssistantMessage = new ChatRequestAssistantMessage("");
+        if (functionJson != null) {
+            try {
+                FunctionCall functionCall = FunctionCall.fromJson(JsonProviders.createReader(functionJson));
+                chatRequestAssistantMessage.setFunctionCall(functionCall);
+            } catch (IOException ignored) {
+                this.plugin.getPluginLogger().warning("Not possible to convert functionCall");
+            }
+        }
+        return new ChatMessage(chatRequestAssistantMessage);
     }
 
     public UserToken getIdentity() {

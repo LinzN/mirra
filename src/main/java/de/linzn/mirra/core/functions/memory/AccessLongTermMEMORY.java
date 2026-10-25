@@ -13,32 +13,35 @@
 package de.linzn.mirra.core.functions.memory;
 
 import com.azure.ai.openai.models.FunctionDefinition;
+import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.identitySystem.AiPermissions;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
 import de.linzn.mirra.openai.models.FunctionProperties;
-import de.linzn.stem.STEMApp;
-import de.linzn.stem.modules.databaseModule.DatabaseModule;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 public class AccessLongTermMEMORY implements IFunctionCall {
+
+    private static final int MAX_KEYWORDS = 10;
+
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
-        STEMApp.LOGGER.CORE(input);
+        MirraPlugin.mirraPlugin.getPluginLogger().debug("Access long term memory: " + input);
         JSONObject jsonObject = new JSONObject();
         if (identityUser.hasPermission(AiPermissions.LONG_TERM_MEMORY_ACCESS)) {
+            JSONArray keywords = input.optJSONArray("keywordArray_english");
             jsonObject.put("success", true);
-            jsonObject.put("memory_search_result_jsonArray", accessMemory(input.getJSONArray("keywordArray_english")));
-            STEMApp.LOGGER.CORE(input);
+            jsonObject.put("memory_search_result_jsonArray", accessMemory(keywords != null ? keywords : new JSONArray()));
         } else {
             jsonObject.put("success", false);
             jsonObject.put("reason", "No permissions");
@@ -69,46 +72,51 @@ public class AccessLongTermMEMORY implements IFunctionCall {
         return "access_long_term_memory";
     }
 
+    /* keywords come from the language model, so they are always bound as parameters */
     private JSONArray accessMemory(JSONArray keywords) {
-
-        DatabaseModule databaseModule = STEMApp.getInstance().getDatabaseModule();
         JSONArray jsonArray = new JSONArray();
-
+        List<String> searchTerms = new ArrayList<>();
+        for (int i = 0; i < keywords.length() && searchTerms.size() < MAX_KEYWORDS; i++) {
+            String keyword = keywords.optString(i, "").trim();
+            if (!keyword.isEmpty()) {
+                searchTerms.add(keyword);
+            }
+        }
+        if (searchTerms.isEmpty()) {
+            return jsonArray;
+        }
+        StringBuilder query = new StringBuilder("SELECT * FROM plugin_mirra_longterm_memory WHERE ");
+        for (int i = 0; i < searchTerms.size(); i++) {
+            query.append(i == 0 ? "" : " OR ").append("memory_data LIKE ? ESCAPE '!'");
+        }
+        query.append(" ORDER BY id DESC LIMIT 10");
         try {
-            Connection conn = databaseModule.getConnection();
-
-            //String query = "SELECT * FROM plugin_mirra_longterm_memory WHERE search_identifier_english = '" + search_identifier_english + "' ORDER BY id DESC LIMIT 10";
-
-            String likeString = "where ";
-
-            for (int i = 0; i < keywords.length(); i++) {
-
-                likeString = likeString + "memory_data LIKE '%" + keywords.getString(i) + "%' ";
-                if (i + 1 != keywords.length()) {
-                    likeString = likeString + "OR ";
+            MirraPlugin.mirraPlugin.getStemApi().data().withConnection(conn -> {
+                try (PreparedStatement st = conn.prepareStatement(query.toString())) {
+                    for (int i = 0; i < searchTerms.size(); i++) {
+                        st.setString(i + 1, "%" + escapeLike(searchTerms.get(i)) + "%");
+                    }
+                    try (ResultSet rs = st.executeQuery()) {
+                        while (rs.next()) {
+                            Date date = rs.getDate("date");
+                            JSONObject jsonObject = new JSONObject();
+                            jsonObject.put("id", rs.getInt("id"));
+                            jsonObject.put("keywords", keywords);
+                            jsonObject.put("memory_data", rs.getString("memory_data"));
+                            jsonObject.put("information_saved_on", date);
+                            jsonArray.put(jsonObject);
+                        }
+                    }
                 }
-            }
-            String query = "SELECT * FROM plugin_mirra_longterm_memory " + likeString + "ORDER BY id DESC LIMIT 10";
-            STEMApp.LOGGER.CONFIG(query);
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery(query);
-
-            while (rs.next()) {
-                int id = rs.getInt("id");
-                String memory_data = rs.getString("memory_data");
-                Date date = rs.getDate("date");
-                JSONObject jsonObject = new JSONObject();
-                jsonObject.put("id", id);
-                jsonObject.put("keywords", keywords);
-                jsonObject.put("memory_data", memory_data);
-                jsonObject.put("information_saved_on", date);
-                jsonArray.put(jsonObject);
-            }
-
-            databaseModule.releaseConnection(conn);
+                return null;
+            });
         } catch (SQLException e) {
-            STEMApp.LOGGER.ERROR(e);
+            MirraPlugin.mirraPlugin.getPluginLogger().error("Unable to read long term memory", e);
         }
         return jsonArray;
+    }
+
+    private static String escapeLike(String value) {
+        return value.replace("!", "!!").replace("%", "!%").replace("_", "!_");
     }
 }

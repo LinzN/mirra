@@ -20,7 +20,6 @@ import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
 import de.linzn.mirra.openai.models.FunctionProperties;
-import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
 import java.text.ParseException;
@@ -28,27 +27,32 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class CreateReminder implements IFunctionCall {
+
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
-        STEMApp.LOGGER.CORE(input);
+        MirraPlugin.mirraPlugin.getPluginLogger().debug("Create reminder: " + input);
         JSONObject jsonObject = new JSONObject();
-        if (identityUser.hasPermission(AiPermissions.CREATE_REMINDER)) {
-            jsonObject.put("success", true);
-            String inputContent = input.getString("reminderContent");
-            Date date;
-            try {
-                date = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").parse(input.getString("reminderDatetime"));
-                MirraPlugin.mirraPlugin.getReminderEngine().createMirraReminder(identityUser, userToken, inputContent, date);
-
-            } catch (ParseException e) {
-                jsonObject.put("success", false);
-                jsonObject.put("reason", "Error: " + e.getLocalizedMessage());
-            }
-
-            STEMApp.LOGGER.CORE(input);
-        } else {
+        if (!identityUser.hasPermission(AiPermissions.CREATE_REMINDER)) {
             jsonObject.put("success", false);
             jsonObject.put("reason", "No permissions");
+            return jsonObject;
+        }
+        if (userToken == null || userToken.getId() < 0) {
+            /* reminders are stored with the token id, guest and internal tokens are not in the database */
+            jsonObject.put("success", false);
+            jsonObject.put("reason", "Reminders are only possible for registered users");
+            return jsonObject;
+        }
+        String inputContent = input.optString("reminderContent", "");
+        try {
+            SimpleDateFormat format = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+            format.setLenient(false);
+            Date date = format.parse(input.optString("reminderDatetime", ""));
+            MirraPlugin.mirraPlugin.getReminderEngine().createMirraReminder(identityUser, userToken, inputContent, date);
+            jsonObject.put("success", true);
+        } catch (ParseException e) {
+            jsonObject.put("success", false);
+            jsonObject.put("reason", "Error: " + e.getLocalizedMessage());
         }
         return jsonObject;
     }

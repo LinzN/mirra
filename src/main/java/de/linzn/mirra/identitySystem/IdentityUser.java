@@ -12,25 +12,24 @@
 
 package de.linzn.mirra.identitySystem;
 
-import de.linzn.stem.STEMApp;
-
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 public class IdentityUser {
 
     private final String identityName;
     private final List<UserToken> userTokens;
-    private final List<AiPermissions> aiPermissionsList;
+    private final Set<AiPermissions> aiPermissionsList;
 
     public IdentityUser(String identityName) {
         this.identityName = identityName;
-        this.userTokens = new ArrayList<>();
-        this.aiPermissionsList = new ArrayList<>();
+        this.userTokens = new CopyOnWriteArrayList<>();
+        this.aiPermissionsList = new CopyOnWriteArraySet<>();
     }
 
     public void addPermission(AiPermissions aiPermissions) {
-        STEMApp.LOGGER.CONFIG("ADD AIPermissions " + aiPermissions.name() + " to " + this.getIdentityName());
         this.aiPermissionsList.add(aiPermissions);
     }
 
@@ -43,7 +42,6 @@ public class IdentityUser {
     }
 
     public void assignUserToken(UserToken userToken) {
-        STEMApp.LOGGER.CONFIG("ADD IdentityToken " + userToken.getName() + " to " + this.getIdentityName());
         this.userTokens.add(userToken);
     }
 

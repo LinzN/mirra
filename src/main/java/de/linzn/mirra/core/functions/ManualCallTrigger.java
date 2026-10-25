@@ -13,17 +13,17 @@
 package de.linzn.mirra.core.functions;
 
 import com.azure.ai.openai.models.FunctionDefinition;
+import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
-import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
 public class ManualCallTrigger implements IFunctionCall {
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
-        STEMApp.LOGGER.CORE("Tis is a standalone function. No external call allowed");
+        MirraPlugin.mirraPlugin.getPluginLogger().debug("This is a standalone function. No external call allowed");
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("success", false);
         jsonObject.put("description", "This function call is not allowed to trigger external!");

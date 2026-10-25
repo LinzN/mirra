@@ -13,26 +13,37 @@
 package de.linzn.mirra.whatsapp;
 
 import de.linzn.evolutionApiJava.logger.EvolutionLogger;
-import de.linzn.stem.STEMApp;
+import de.linzn.stem.modules.pluginModule.STEMPlugin;
 
 public class EvolutionConvertLogger implements EvolutionLogger {
+
+    private final STEMPlugin plugin;
+
+    public EvolutionConvertLogger(STEMPlugin plugin) {
+        this.plugin = plugin;
+    }
+
     @Override
     public void DEBUG(Object o) {
-        STEMApp.LOGGER.DEBUG(o);
+        this.plugin.getPluginLogger().debug(String.valueOf(o));
     }
 
     @Override
     public void INFO(Object o) {
-        STEMApp.LOGGER.INFO(o);
+        this.plugin.getPluginLogger().info(String.valueOf(o));
     }
 
     @Override
     public void WARNING(Object o) {
-        STEMApp.LOGGER.WARNING(o);
+        this.plugin.getPluginLogger().warning(String.valueOf(o));
     }
 
     @Override
     public void ERROR(Object o) {
-        STEMApp.LOGGER.ERROR(o);
+        if (o instanceof Throwable throwable) {
+            this.plugin.getPluginLogger().error(throwable);
+        } else {
+            this.plugin.getPluginLogger().error(String.valueOf(o));
+        }
     }
 }

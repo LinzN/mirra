@@ -23,50 +23,66 @@ import de.linzn.mirra.identitySystem.IdentityGuest;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
-import de.linzn.stem.STEMApp;
 
 import java.util.List;
 
 public class OnNewChatMessageListener {
 
+    private final MirraPlugin plugin;
     private final EvolutionApi evolutionApi;
 
-    public OnNewChatMessageListener(EvolutionApi evolutionApi) {
+    public OnNewChatMessageListener(MirraPlugin plugin, EvolutionApi evolutionApi) {
+        this.plugin = plugin;
         this.evolutionApi = evolutionApi;
     }
 
     @EventSettings(priority = EventPriority.NORMAL)
     public void onNewMessage(NewMessageEvent event) {
         TextMessage textMessage = event.textMessage();
-            if(!textMessage.fromMe()) {
-                JidClient senderJid = textMessage.remoteClientId();
-                String senderName = textMessage.pushName();
-                String content = textMessage.text();
-                assignGPTModel(senderName, content, senderJid);
-            } else {
-                STEMApp.LOGGER.CORE("Message from AI self?");
+        if (textMessage == null || textMessage.fromMe()) {
+            return;
+        }
+        JidClient senderJid = textMessage.remoteClientId();
+        String senderName = textMessage.pushName();
+        String content = textMessage.text();
+        if (senderJid == null || content == null || content.isBlank()) {
+            return;
+        }
+        /* the AI request takes seconds, never block the RabbitMQ consumer */
+        this.plugin.getStemApi().scheduler().runAsync(() -> {
+            try {
+                this.assignGPTModel(senderName, content, senderJid);
+            } catch (Exception e) {
+                this.plugin.getPluginLogger().error("WhatsApp AI request failed", e);
             }
-
+        });
     }
 
     private void assignGPTModel(String sender, String content, JidClient identifier) {
-        STEMApp.LOGGER.INFO("Input from EvolutionAPI..");
-        STEMApp.getInstance().getScheduler().runTask(MirraPlugin.mirraPlugin, () -> {
-            evolutionApi.getWebApiProvider().SetOnlineOffline(true);
-            evolutionApi.getWebApiProvider().sendTypingPresence(identifier, 2500);
+        this.plugin.getPluginLogger().info("Input from EvolutionAPI..");
+        this.plugin.getStemApi().scheduler().runAsync(() -> {
+            try {
+                evolutionApi.getWebApiProvider().SetOnlineOffline(true);
+                evolutionApi.getWebApiProvider().sendTypingPresence(identifier, 2500);
+            } catch (Exception e) {
+                this.plugin.getPluginLogger().debug("Unable to set WhatsApp presence: " + e.getMessage());
+            }
         });
-        UserToken userToken = MirraPlugin.mirraPlugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
-        IdentityUser identityUser = MirraPlugin.mirraPlugin.getIdentityManager().getIdentityUserByToken(userToken);
-        if (identityUser instanceof IdentityGuest) {
-            ((IdentityGuest) identityUser).setGuestName(sender);
+        UserToken userToken = this.plugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
+        IdentityUser identityUser = this.plugin.getIdentityManager().getIdentityUserByToken(userToken);
+        if (identityUser instanceof IdentityGuest identityGuest) {
+            identityGuest.setGuestName(sender);
         }
-        List<String> input = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().buildMessageBlock(identityUser.getIdentityName(), content, userToken.getSource().name());
-        String chatMessage = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestChatCompletion(input, userToken, sender);
-        STEMApp.LOGGER.INFO("Callback from OpenAI rest api...");
-        STEMApp.LOGGER.CORE(chatMessage);
-        STEMApp.LOGGER.CORE("Jid text:" + identifier);
-        evolutionApi.getWebApiProvider().sendTextMessage(identifier, chatMessage);
-        evolutionApi.getWebApiProvider().SetOnlineOffline(false);
+        List<String> input = this.plugin.getAiManager().getDefaultModel().buildMessageBlock(identityUser.getIdentityName(), content, userToken.getSource().name());
+        String chatMessage = this.plugin.getAiManager().getDefaultModel().requestChatCompletion(input, userToken, sender);
+        this.plugin.getPluginLogger().info("Callback from OpenAI rest api...");
+        this.plugin.getPluginLogger().debug(chatMessage);
+        try {
+            if (chatMessage != null && !chatMessage.isBlank()) {
+                evolutionApi.getWebApiProvider().sendTextMessage(identifier, chatMessage);
+            }
+        } finally {
+            evolutionApi.getWebApiProvider().SetOnlineOffline(false);
+        }
     }
 }
-

@@ -18,6 +18,7 @@ import de.linzn.mirra.core.functions.memory.WriteLongTermMEMORY;
 import de.linzn.mirra.core.manualCalls.ManualFunctionCaller;
 import de.linzn.mirra.core.manualCalls.UpdateSocialStatusCaller;
 import de.linzn.mirra.openai.IFunctionCall;
+import de.linzn.stem.modules.pluginModule.STEMPlugin;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -55,6 +56,15 @@ public class FunctionProvider {
         this.manualFunctionCallerSet.add(new UpdateSocialStatusCaller());
     }
 
+    /**
+     * Schedules all manual function callers. Called once, after all managers of the plugin exist.
+     */
+    public void startManualFunctionCallers(STEMPlugin plugin) {
+        for (ManualFunctionCaller caller : this.manualFunctionCallerSet) {
+            caller.schedule(plugin);
+        }
+    }
+
 
     private void registerFunction(IFunctionCall iFunction) {
         this.functionHashMap.put(iFunction.functionName().toLowerCase(), iFunction);
@@ -62,11 +72,11 @@ public class FunctionProvider {
 
 
     public IFunctionCall getFunction(String functionName) {
-        return this.functionHashMap.get(functionName.toLowerCase());
+        return functionName == null ? null : this.functionHashMap.get(functionName.toLowerCase());
     }
 
     public boolean hasFunction(String functionName) {
-        return this.functionHashMap.containsKey(functionName.toLowerCase());
+        return functionName != null && this.functionHashMap.containsKey(functionName.toLowerCase());
     }
 
     public List<FunctionDefinition> buildChatFunctionProvider() {

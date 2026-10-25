@@ -20,22 +20,26 @@ import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.mirra.openai.IFunctionCall;
 import de.linzn.mirra.openai.models.FunctionParameters;
 import de.linzn.mirra.openai.models.FunctionProperties;
-import de.linzn.stem.STEMApp;
 import org.json.JSONObject;
 
 public class CreateImage implements IFunctionCall {
+
     @Override
     public JSONObject completeRequest(JSONObject input, IdentityUser identityUser, UserToken userToken) {
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("imageDescription", input.getString("imageDescription"));
-        if (identityUser.hasPermission(AiPermissions.CREATE_IMAGE)) {
-            STEMApp.LOGGER.CORE(input);
-            String url = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestImageCompletion(input.getString("imageDescription"));
-            jsonObject.put("success", true);
-            jsonObject.put("imageURL", url);
-        } else {
+        String description = input.optString("imageDescription", "");
+        jsonObject.put("imageDescription", description);
+        if (!identityUser.hasPermission(AiPermissions.CREATE_IMAGE)) {
             jsonObject.put("success", false);
             jsonObject.put("reason", "No permissions");
+        } else if (description.isBlank()) {
+            jsonObject.put("success", false);
+            jsonObject.put("reason", "No image description");
+        } else {
+            MirraPlugin.mirraPlugin.getPluginLogger().debug("Create image: " + description);
+            String url = MirraPlugin.mirraPlugin.getAiManager().getDefaultModel().requestImageCompletion(description);
+            jsonObject.put("success", true);
+            jsonObject.put("imageURL", url);
         }
         return jsonObject;
     }
