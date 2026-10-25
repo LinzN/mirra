@@ -142,12 +142,12 @@ facts (`memory.legacyImported` is set afterwards).
 | `openAI.timeoutSeconds`            | `120`                       | Timeout of one request                       |
 | `default.model`                    | `mirra`                     | Name of the model configuration below        |
 | `default.identityName`             | `Niklas`                    | Name used as sender for STEM events          |
-| `model.<name>.textOpenAIModel`     | `gpt-4.1`                   | Chat model, e.g. `gpt-4.1`, `gpt-5`          |
-| `model.<name>.imageOpenAIModel`    | `dall-e-3`                  | Image model, e.g. `dall-e-3`, `gpt-image-1`  |
+| `model.<name>.textOpenAIModel`     | `gpt-4.1`                   | Chat model, e.g. `gpt-4.1`, `gpt-6-sol`      |
+| `model.<name>.imageOpenAIModel`    | `gpt-image-1`               | Image model, e.g. `gpt-image-1`, `gpt-image-2` |
 | `model.<name>.aiRoleDescription`   | `You are Mirra, ...`        | Personality of Mirra                         |
 | `model.<name>.memoryModel`         | text model                  | Model for memory extraction and summaries    |
 | `model.<name>.embeddingModel`      | `text-embedding-3-small`    | Embedding model of the long term memory      |
-| `model.<name>.reasoningEffort`     | empty                       | `low`, `medium` or `high` for reasoning models, empty for others |
+| `model.<name>.reasoningEffort`     | empty                       | Reasoning effort of reasoning models (e.g. `low`, `medium`, `high`), empty for the model default |
 | `agent.maxToolRounds`              | `10`                        | Tool rounds per message                      |
 | `agent.historyMessages`            | `16`                        | Chat messages sent with each request         |
 | `agent.webSearch`                  | `false`                     | Offer the OpenAI web search tool to registered users |

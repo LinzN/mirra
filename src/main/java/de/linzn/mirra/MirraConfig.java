@@ -65,7 +65,7 @@ public final class MirraConfig {
         this.defaultIdentityName = string(config, "default.identityName", "Niklas");
         String prefix = "model." + this.modelName + ".";
         this.textModel = string(config, prefix + "textOpenAIModel", "gpt-4.1");
-        this.imageModel = string(config, prefix + "imageOpenAIModel", "dall-e-3");
+        this.imageModel = string(config, prefix + "imageOpenAIModel", "gpt-image-1");
         this.personality = string(config, prefix + "aiRoleDescription", "You are Mirra, a helpful smart home assistant.");
         this.memoryModel = string(config, prefix + "memoryModel", this.textModel);
         this.embeddingModel = string(config, prefix + "embeddingModel", "text-embedding-3-small");
