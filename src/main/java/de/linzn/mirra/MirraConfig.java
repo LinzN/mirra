@@ -35,6 +35,7 @@ public final class MirraConfig {
     public final String embeddingModel;
     public final String imageModel;
     public final String reasoningEffort;
+    public final String transcriptionModel;
     public final String personality;
     public final String defaultIdentityName;
 
@@ -47,6 +48,11 @@ public final class MirraConfig {
     public final int scriptTimeoutSeconds;
 
     /* memory */
+    public final boolean attachmentsEnabled;
+    public final boolean attachmentsForGuests;
+    public final int attachmentMaxSizeMB;
+    public final int attachmentKeepMinutes;
+
     public final boolean autoMemory;
     public final int summaryThreshold;
     public final int memoryContextSize;
@@ -70,6 +76,7 @@ public final class MirraConfig {
         this.memoryModel = string(config, prefix + "memoryModel", this.textModel);
         this.embeddingModel = string(config, prefix + "embeddingModel", "text-embedding-3-small");
         this.reasoningEffort = string(config, prefix + "reasoningEffort", "").trim().toLowerCase(Locale.ROOT);
+        this.transcriptionModel = string(config, prefix + "transcriptionModel", "gpt-4o-mini-transcribe");
 
         this.maxToolRounds = clamp(integer(config, "agent.maxToolRounds", 10), 1, 30);
         this.historyMessages = clamp(integer(config, "agent.historyMessages", 16), 2, 100);
@@ -77,6 +84,11 @@ public final class MirraConfig {
         this.blockedCommands = stringList(config, "agent.blockedCommands", List.of("stop", "reboot"));
         this.commandTimeoutSeconds = clamp(integer(config, "agent.commandTimeoutSeconds", 60), 1, 600);
         this.scriptTimeoutSeconds = clamp(integer(config, "agent.scriptTimeoutSeconds", 120), 1, 3600);
+
+        this.attachmentsEnabled = bool(config, "attachments.enabled", true);
+        this.attachmentsForGuests = bool(config, "attachments.guests", false);
+        this.attachmentMaxSizeMB = clamp(integer(config, "attachments.maxSizeMB", 25), 1, 50);
+        this.attachmentKeepMinutes = clamp(integer(config, "attachments.keepMinutes", 30), 0, 1440);
 
         this.autoMemory = bool(config, "memory.autoExtract", true);
         this.summaryThreshold = clamp(integer(config, "memory.summaryThreshold", 40), 10, 500);

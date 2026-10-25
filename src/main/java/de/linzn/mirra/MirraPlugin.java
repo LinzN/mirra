@@ -27,6 +27,7 @@ package de.linzn.mirra;
 import de.linzn.mirra.agent.ChatContext;
 import de.linzn.mirra.agent.ImageService;
 import de.linzn.mirra.agent.MirraAgent;
+import de.linzn.mirra.agent.attachment.AttachmentProcessor;
 import de.linzn.mirra.agent.openai.OpenAIClient;
 import de.linzn.mirra.agent.tools.AssistantTools;
 import de.linzn.mirra.agent.tools.HomeTools;
@@ -62,6 +63,7 @@ public class MirraPlugin extends STEMPlugin {
     private ReminderEngine reminderEngine;
     private MirraAgent agent;
     private ImageService imageService;
+    private AttachmentProcessor attachmentProcessor;
 
     public MirraPlugin() {
         mirraPlugin = this;
@@ -102,13 +104,14 @@ public class MirraPlugin extends STEMPlugin {
         MemoryKeeper keeper = new MemoryKeeper(client, memory, repository, this.getPluginLogger(), this.mirraConfig.modelName,
                 this.mirraConfig.memoryModel, this.mirraConfig.historyMessages, this.mirraConfig.summaryThreshold);
         this.imageService = new ImageService(this, client, this.mirraConfig.imageModel);
+        this.attachmentProcessor = new AttachmentProcessor(client, this.getPluginLogger(), this.mirraConfig.transcriptionModel, this.mirraConfig.attachmentMaxSizeMB);
 
         ToolRegistry tools = new ToolRegistry(this.getPluginLogger());
         tools.registerAll(StemTools.create(this, this.mirraConfig));
         tools.registerAll(HomeTools.create());
         tools.registerAll(AssistantTools.create(this));
         this.agent = new MirraAgent(client, this.mirraConfig, tools, repository, memory, keeper, this.getPluginLogger(),
-                task -> this.getStemApi().scheduler().runAsync(task), this.getStemApi().system().getZone());
+                task -> this.getStemApi().scheduler().runAsync(task), this.getStemApi().system().getZone(), this.attachmentProcessor);
         this.getPluginLogger().info("Mirra agent ready with " + tools.getTools().size() + " tools, model " + this.mirraConfig.textModel);
 
         this.identityManager = new IdentityManager(this);
@@ -214,6 +217,10 @@ public class MirraPlugin extends STEMPlugin {
 
     public MirraAgent getAgent() {
         return agent;
+    }
+
+    public AttachmentProcessor getAttachmentProcessor() {
+        return attachmentProcessor;
     }
 
     public ImageService getImageService() {

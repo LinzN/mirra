@@ -15,6 +15,7 @@ package de.linzn.mirra.agent.openai;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -25,6 +26,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Minimal client for the OpenAI REST API: Responses (agents with tools), Embeddings and Images.
@@ -136,6 +138,39 @@ public class OpenAIClient {
         return response.body();
     }
 
+    /**
+     * POST /audio/transcriptions
+     *
+     * @param fileName name with an extension OpenAI knows (mp3, m4a, ogg, wav, webm, ...)
+     * @return the transcribed text
+     */
+    public String transcribe(String model, String fileName, String mimeType, byte[] data) throws OpenAIException, InterruptedException {
+        String boundary = "----mirra" + UUID.randomUUID().toString().replace("-", "");
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        writeField(body, boundary, "model", model);
+        writeField(body, boundary, "response_format", "json");
+        String header = "--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName.replace("\"", "") + "\"\r\n"
+                + "Content-Type: " + (mimeType == null ? "application/octet-stream" : mimeType) + "\r\n\r\n";
+        body.writeBytes(header.getBytes(StandardCharsets.UTF_8));
+        body.writeBytes(data);
+        body.writeBytes(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        HttpRequest request = HttpRequest.newBuilder(URI.create(this.baseUrl + "/audio/transcriptions"))
+                .timeout(this.timeout)
+                .header("Authorization", "Bearer " + this.apiKey)
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray()))
+                .build();
+        return this.execute(request).optString("text", "");
+    }
+
+    private static void writeField(ByteArrayOutputStream body, String boundary, String name, String value) {
+        String part = "--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n"
+                + value + "\r\n";
+        body.writeBytes(part.getBytes(StandardCharsets.UTF_8));
+    }
+
     private JSONObject post(String path, JSONObject body) throws OpenAIException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(this.baseUrl + path))
                 .timeout(this.timeout)
@@ -143,6 +178,10 @@ public class OpenAIClient {
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
                 .build();
+        return this.execute(request);
+    }
+
+    private JSONObject execute(HttpRequest request) throws OpenAIException, InterruptedException {
         OpenAIException lastError = null;
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             if (attempt > 0) {

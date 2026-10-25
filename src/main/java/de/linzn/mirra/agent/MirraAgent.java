@@ -13,6 +13,8 @@
 package de.linzn.mirra.agent;
 
 import de.linzn.mirra.MirraConfig;
+import de.linzn.mirra.agent.attachment.Attachment;
+import de.linzn.mirra.agent.attachment.AttachmentProcessor;
 import de.linzn.mirra.agent.openai.AgentResponse;
 import de.linzn.mirra.agent.openai.OpenAIClient;
 import de.linzn.mirra.agent.openai.OpenAIException;
@@ -26,6 +28,7 @@ import de.linzn.stem.api.StemLogger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -55,6 +58,9 @@ public class MirraAgent {
             - Your long term memory is maintained automatically after each message. Use `remember` when somebody
               explicitly asks you to remember something, `recall` to search for things that are not in your context
               and `forget` when you are asked to forget something.
+            - People can send files: images and documents are attached to their message, text files are included
+              as text and voice messages arrive as transcript. Treat a voice message like a written message.
+              Files from the last minutes are attached again so you can answer follow-up questions about them.
             - Answer in the language of the person, short and natural like in a chat. No markdown tables.
             """;
 
@@ -68,12 +74,22 @@ public class MirraAgent {
     private final Consumer<Runnable> background;
     private final ZoneId zone;
     private final Map<String, ReentrantLock> chatLocks = new ConcurrentHashMap<>();
+    private final AttachmentProcessor attachments;
+    /* files of the last minutes per chat, sent again so follow-up questions about them work */
+    private final Map<String, Deque<RecentFile>> recentFiles = new ConcurrentHashMap<>();
+
+    private record RecentFile(Instant received, JSONArray parts) {
+    }
+
+    private static final int MAX_RECENT_FILES = 5;
 
     /**
      * @param background runs memory maintenance asynchronously, e.g. the STEM scheduler
      */
     public MirraAgent(OpenAIClient client, MirraConfig config, ToolRegistry tools, MemoryRepository repository,
-                      LongTermMemory memory, MemoryKeeper keeper, StemLogger logger, Consumer<Runnable> background, ZoneId zone) {
+                      LongTermMemory memory, MemoryKeeper keeper, StemLogger logger, Consumer<Runnable> background, ZoneId zone,
+                      AttachmentProcessor attachments) {
+        this.attachments = attachments;
         this.client = client;
         this.config = config;
         this.tools = tools;
@@ -99,19 +115,51 @@ public class MirraAgent {
      * @return the answer, never null
      */
     public String chat(ChatContext chat, String message) {
+        return this.chat(chat, message, List.of());
+    }
+
+    /**
+     * Answer a chat message with files. Messages of the same chat are handled one after another.
+     *
+     * @param message     text of the message, may be empty if only files were sent
+     * @param attachments files of the message
+     * @return the answer, never null
+     */
+    public String chat(ChatContext chat, String message, List<Attachment> attachments) {
         ReentrantLock lock = this.chatLocks.computeIfAbsent(chat.chatKey(), key -> new ReentrantLock());
         lock.lock();
         String answer;
-        String userContent = "[" + chat.displayName() + "] " + message;
+        String text = message == null ? "" : message.trim();
+        String memoryText = text;
         try {
+            AttachmentProcessor.Prepared prepared = this.prepareAttachments(chat, attachments);
+            String userContent = "[" + chat.displayName() + "] " + text;
+            if (!prepared.historyNote().isEmpty()) {
+                userContent = userContent + (text.isEmpty() ? "" : "\n") + prepared.historyNote();
+                memoryText = (text + "\n" + prepared.historyNote()).trim();
+            }
             List<MemoryRepository.StoredMessage> history = this.repository.recentMessages(this.config.modelName, chat.chatKey(), this.config.historyMessages);
-            String instructions = this.buildInstructions(chat, message);
+            String instructions = this.buildInstructions(chat, memoryText);
             JSONArray input = new JSONArray();
             for (MemoryRepository.StoredMessage stored : history) {
                 input.put(new JSONObject().put("role", stored.role()).put("content", stored.content()));
             }
-            input.put(new JSONObject().put("role", "user").put("content", userContent));
+            JSONArray earlier = this.recentFileParts(chat.chatKey());
+            if (!earlier.isEmpty()) {
+                JSONArray content = new JSONArray().put(new JSONObject().put("type", "input_text")
+                        .put("text", "(Files sent earlier in this chat, attached again so you can still read them)"));
+                earlier.forEach(content::put);
+                input.put(new JSONObject().put("role", "user").put("content", content));
+            }
+            if (prepared.parts().isEmpty()) {
+                input.put(new JSONObject().put("role", "user").put("content", userContent));
+            } else {
+                JSONArray content = new JSONArray().put(new JSONObject().put("type", "input_text").put("text", "[" + chat.displayName() + "] " + text));
+                prepared.parts().forEach(content::put);
+                input.put(new JSONObject().put("role", "user").put("content", content));
+            }
             answer = this.runToolLoop(chat, instructions, input);
+            this.rememberFiles(chat.chatKey(), prepared.reusable());
             this.repository.appendMessage(this.config.modelName, chat.chatKey(), "user", userContent);
             this.repository.appendMessage(this.config.modelName, chat.chatKey(), "assistant", answer);
         } catch (InterruptedException e) {
@@ -126,8 +174,50 @@ public class MirraAgent {
         } finally {
             lock.unlock();
         }
-        this.maintainMemory(chat, message, answer);
+        this.maintainMemory(chat, memoryText, answer);
         return answer;
+    }
+
+    private AttachmentProcessor.Prepared prepareAttachments(ChatContext chat, List<Attachment> files) {
+        if (files == null || files.isEmpty()) {
+            return AttachmentProcessor.Prepared.EMPTY;
+        }
+        String names = files.stream().map(Attachment::fileName).reduce((a, b) -> a + ", " + b).orElse("");
+        if (this.attachments == null || !this.config.attachmentsEnabled) {
+            String note = "[Files sent: " + names + "; reading files is disabled]";
+            return new AttachmentProcessor.Prepared(new JSONArray().put(new JSONObject().put("type", "input_text").put("text", note)), new JSONArray(), note);
+        }
+        if (chat.isGuest() && !this.config.attachmentsForGuests) {
+            String note = "[Files sent: " + names + "; files are only read for registered users]";
+            return new AttachmentProcessor.Prepared(new JSONArray().put(new JSONObject().put("type", "input_text").put("text", note)), new JSONArray(), note);
+        }
+        this.logger.info("Reading " + files.size() + " file(s) from " + chat.name() + ": " + names);
+        return this.attachments.prepare(files);
+    }
+
+    private JSONArray recentFileParts(String chatKey) {
+        JSONArray parts = new JSONArray();
+        Deque<RecentFile> files = this.recentFiles.get(chatKey);
+        if (files == null) {
+            return parts;
+        }
+        Instant limit = Instant.now().minusSeconds(this.config.attachmentKeepMinutes * 60L);
+        files.removeIf(file -> file.received().isBefore(limit));
+        for (RecentFile file : files) {
+            file.parts().forEach(parts::put);
+        }
+        return parts;
+    }
+
+    private void rememberFiles(String chatKey, JSONArray parts) {
+        if (parts.isEmpty() || this.config.attachmentKeepMinutes <= 0) {
+            return;
+        }
+        Deque<RecentFile> files = this.recentFiles.computeIfAbsent(chatKey, key -> new ArrayDeque<>());
+        files.addLast(new RecentFile(Instant.now(), parts));
+        while (files.size() > MAX_RECENT_FILES) {
+            files.removeFirst();
+        }
     }
 
     /**

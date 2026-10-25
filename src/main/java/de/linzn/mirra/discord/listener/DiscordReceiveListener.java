@@ -26,14 +26,20 @@ package de.linzn.mirra.discord.listener;
 
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.agent.ChatContext;
+import de.linzn.mirra.agent.attachment.Attachment;
+import de.linzn.mirra.agent.attachment.AttachmentProcessor;
 import de.linzn.mirra.discord.DiscordManager;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class DiscordReceiveListener extends ListenerAdapter {
 
@@ -51,29 +57,52 @@ public class DiscordReceiveListener extends ListenerAdapter {
             return;
         }
         String inputData = event.getMessage().getContentDisplay();
+        List<Message.Attachment> files = List.copyOf(event.getMessage().getAttachments());
         User user = event.getAuthor();
-        if (inputData == null || inputData.isBlank()) {
+        if ((inputData == null || inputData.isBlank()) && files.isEmpty()) {
             return;
         }
         /* the agent may run several tools, never block the JDA event thread */
         this.plugin.getStemApi().scheduler().runAsync(() -> {
             try {
-                this.answer(user, inputData);
+                this.answer(user, inputData == null ? "" : inputData, files);
             } catch (Exception e) {
                 this.plugin.getPluginLogger().error("Discord AI request failed", e);
             }
         });
     }
 
-    private void answer(User user, String content) {
-        this.plugin.getPluginLogger().info("Discord message from " + user.getName());
+    private void answer(User user, String content, List<Message.Attachment> files) {
+        this.plugin.getPluginLogger().info("Discord message from " + user.getName() + (files.isEmpty() ? "" : " with " + files.size() + " file(s)"));
         UserToken userToken = this.plugin.getIdentityManager().getOrCreateUserToken(user.getId(), TokenSource.DISCORD);
         ChatContext chat = this.plugin.chatContext(userToken, user.getName());
-        String answer = this.plugin.getAgent().chat(chat, content);
+        String answer = this.plugin.getAgent().chat(chat, content, this.download(files));
         this.plugin.getPluginLogger().debug("Answer to " + user.getName() + ": " + answer);
         if (answer != null && !answer.isBlank()) {
             this.discordManager.sendPrivateMessage(user.getId(), answer);
         }
+    }
+
+    private List<Attachment> download(List<Message.Attachment> files) {
+        List<Attachment> attachments = new ArrayList<>();
+        AttachmentProcessor processor = this.plugin.getAttachmentProcessor();
+        for (Message.Attachment file : files) {
+            try {
+                if (processor == null || file.getSize() > processor.maxBytes()) {
+                    /* an empty attachment tells the model the file was too large */
+                    attachments.add(new Attachment(file.getFileName(), file.getContentType(), new byte[0], false));
+                    continue;
+                }
+                attachments.add(new Attachment(file.getFileName(), file.getContentType(), processor.download(file.getUrl()), false));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                this.plugin.getPluginLogger().warning("Could not download Discord attachment " + file.getFileName() + ": " + e.getMessage());
+                attachments.add(new Attachment(file.getFileName(), file.getContentType(), new byte[0], false));
+            }
+        }
+        return attachments;
     }
 
     @Override

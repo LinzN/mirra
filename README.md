@@ -18,6 +18,8 @@ across chats and turns STEM system events into readable messages.
   scripts, MQTT, devices and smart home profile, gated by permissions
 - **Identities and permissions**: known users get their permissions from the database, unknown users are
   guests with minimal rights; tools a user may not use are not offered to the model at all
+- **Files**: images, PDFs, Office documents, text and code files and voice messages sent on Discord or
+  WhatsApp (see [Files](#files))
 - **Memory** in three layers (see [Memory](#memory))
 - **Reminders**: due reminders are sent to the user on Discord or WhatsApp
 - **Notifications**: information blocks with the intent `NOTIFY_USER` are sent to the default Discord user
@@ -87,6 +89,28 @@ model for a final answer without tools.
 
 ---
 
+## Files
+
+Files sent on Discord (private messages) or WhatsApp are read together with the message:
+
+| Type                                                         | How Mirra reads it                                          |
+|--------------------------------------------------------------|-------------------------------------------------------------|
+| Images (JPEG, PNG, WebP, GIF, WhatsApp stickers)             | Sent to the model as image                                  |
+| PDF, Word, Excel, PowerPoint, OpenDocument, RTF              | Sent to the model as file; OpenAI extracts text and pages   |
+| Text, code, CSV, JSON, YAML, logs and other UTF-8 text files | Included as text (up to 60,000 characters)                  |
+| Voice messages and audio files                               | Transcribed with `model.<name>.transcriptionModel`          |
+| Videos and other binary files                                | Not read; Mirra says so                                     |
+
+Files from the last `attachments.keepMinutes` minutes (at most five messages) are sent again with the next
+messages of the same chat, so follow-up questions work. The chat history only stores a short note per file and
+the transcripts of voice messages, never the file content. Guests cannot send files unless
+`attachments.guests` is enabled.
+
+WhatsApp media is loaded through the Evolution API endpoint `getBase64FromMediaMessage`, or taken from the
+webhook directly if "Webhook base64" is enabled for the instance.
+
+---
+
 ## Memory
 
 | Layer            | Scope                       | Storage                          | How it works                                                     |
@@ -116,9 +140,9 @@ facts (`memory.legacyImported` is set afterwards).
 |-------------|-----------------------------------------------------------------------------------------------|
 | STEM        | 1.2.0 or newer with `CommandService.execute` (branch `agent`), database module configured     |
 | Plugins     | [home-devices](https://github.com/LinzN/home-devices), [weather](https://github.com/LinzN/weather), [gas-station](https://github.com/LinzN/gas-station) |
-| OpenAI      | API key with access to the Responses, Embeddings and Images API                               |
+| OpenAI      | API key with access to the Responses, Embeddings, Images and Audio API                        |
 | Discord     | Bot token with the **Message Content** intent (optional)                                      |
-| WhatsApp    | Evolution API instance with RabbitMQ (optional)                                               |
+| WhatsApp    | Evolution API v2 instance with RabbitMQ (optional), [evolution-api-java](https://github.com/LinzN/evolution-api-java) 0.0.4 |
 
 ---
 
@@ -147,6 +171,7 @@ facts (`memory.legacyImported` is set afterwards).
 | `model.<name>.aiRoleDescription`   | `You are Mirra, ...`        | Personality of Mirra                         |
 | `model.<name>.memoryModel`         | text model                  | Model for memory extraction and summaries    |
 | `model.<name>.embeddingModel`      | `text-embedding-3-small`    | Embedding model of the long term memory      |
+| `model.<name>.transcriptionModel`  | `gpt-4o-mini-transcribe`    | Speech to text model for voice messages      |
 | `model.<name>.reasoningEffort`     | empty                       | Reasoning effort of reasoning models (e.g. `low`, `medium`, `high`), empty for the model default |
 | `agent.maxToolRounds`              | `10`                        | Tool rounds per message                      |
 | `agent.historyMessages`            | `16`                        | Chat messages sent with each request         |
@@ -157,6 +182,10 @@ facts (`memory.legacyImported` is set afterwards).
 | `agent.socialStatus.enabled`       | `true`                      | Let Mirra choose a social status             |
 | `agent.socialStatus.cron`          | `0 14 * * *`                | When to choose a new status                  |
 | `agent.socialStatus.onStartup`     | `true`                      | Also choose one after start                  |
+| `attachments.enabled`              | `true`                      | Read files sent to Mirra                     |
+| `attachments.guests`               | `false`                     | Also read files of guests                    |
+| `attachments.maxSizeMB`            | `25`                        | Largest file Mirra reads (at most 50)        |
+| `attachments.keepMinutes`          | `30`                        | How long files are sent again for follow-up questions, `0` to disable |
 | `memory.autoExtract`               | `true`                      | Extract long term memories after each message |
 | `memory.summaryThreshold`          | `40`                        | Unsummarized messages that trigger a summary |
 | `memory.contextSize`               | `12`                        | Long term memories added to each request     |
