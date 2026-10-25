@@ -1,0 +1,311 @@
+/*
+ * Copyright (c) 2026 MirraNET, Niklas Linz. All rights reserved.
+ *
+ * This file is part of the MirraNET project and is licensed under the
+ * GNU Lesser General Public License v3.0 (LGPLv3).
+ *
+ * You may use, distribute and modify this code under the terms
+ * of the LGPLv3 license. You should have received a copy of the
+ * license along with this file. If not, see <https://www.gnu.org/licenses/lgpl-3.0.html>
+ * or contact: niklas.linz@mirranet.de
+ */
+
+package de.linzn.mirra.agent;
+
+import de.linzn.mirra.MirraConfig;
+import de.linzn.mirra.agent.openai.AgentResponse;
+import de.linzn.mirra.agent.openai.OpenAIClient;
+import de.linzn.mirra.agent.openai.OpenAIException;
+import de.linzn.mirra.agent.tools.ToolRegistry;
+import de.linzn.mirra.memory.LongTermMemory;
+import de.linzn.mirra.memory.MemoryEntry;
+import de.linzn.mirra.memory.MemoryKeeper;
+import de.linzn.mirra.memory.MemoryRepository;
+import de.linzn.mirra.identitySystem.AiPermissions;
+import de.linzn.stem.api.StemLogger;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
+
+/**
+ * Mirra as an agent on the OpenAI Responses API.
+ * <p>
+ * One chat turn: build the context (personality, situation, relevant long term memories, chat summary,
+ * recent messages), let the model call tools until it answers, store the exchange and update the memory
+ * in the background.
+ */
+public class MirraAgent {
+
+    private static final DateTimeFormatter NOW_FORMAT = DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy HH:mm", Locale.GERMAN);
+    private static final String ERROR_ANSWER = "Entschuldige, da ist gerade etwas schiefgelaufen. Bitte versuch es gleich noch einmal.";
+
+    private static final String RULES = """
+            ## How you work
+            - You are connected to STEM, the smart home system of this household. Use your tools to look up
+              or change its state instead of guessing. Never claim you did something without calling the tool.
+            - Ask before critical actions that were not clearly requested: console commands, scripts, MQTT messages,
+              notifications to others, switching devices in other rooms.
+            - Your long term memory is maintained automatically after each message. Use `remember` when somebody
+              explicitly asks you to remember something, `recall` to search for things that are not in your context
+              and `forget` when you are asked to forget something.
+            - Answer in the language of the person, short and natural like in a chat. No markdown tables.
+            """;
+
+    private final OpenAIClient client;
+    private final MirraConfig config;
+    private final ToolRegistry tools;
+    private final MemoryRepository repository;
+    private final LongTermMemory memory;
+    private final MemoryKeeper keeper;
+    private final StemLogger logger;
+    private final Consumer<Runnable> background;
+    private final ZoneId zone;
+    private final Map<String, ReentrantLock> chatLocks = new ConcurrentHashMap<>();
+
+    /**
+     * @param background runs memory maintenance asynchronously, e.g. the STEM scheduler
+     */
+    public MirraAgent(OpenAIClient client, MirraConfig config, ToolRegistry tools, MemoryRepository repository,
+                      LongTermMemory memory, MemoryKeeper keeper, StemLogger logger, Consumer<Runnable> background, ZoneId zone) {
+        this.client = client;
+        this.config = config;
+        this.tools = tools;
+        this.repository = repository;
+        this.memory = memory;
+        this.keeper = keeper;
+        this.logger = logger;
+        this.background = background;
+        this.zone = zone;
+    }
+
+    public ToolRegistry getTools() {
+        return tools;
+    }
+
+    public LongTermMemory getMemory() {
+        return memory;
+    }
+
+    /**
+     * Answer a chat message. Messages of the same chat are handled one after another.
+     *
+     * @return the answer, never null
+     */
+    public String chat(ChatContext chat, String message) {
+        ReentrantLock lock = this.chatLocks.computeIfAbsent(chat.chatKey(), key -> new ReentrantLock());
+        lock.lock();
+        String answer;
+        String userContent = "[" + chat.displayName() + "] " + message;
+        try {
+            List<MemoryRepository.StoredMessage> history = this.repository.recentMessages(this.config.modelName, chat.chatKey(), this.config.historyMessages);
+            String instructions = this.buildInstructions(chat, message);
+            JSONArray input = new JSONArray();
+            for (MemoryRepository.StoredMessage stored : history) {
+                input.put(new JSONObject().put("role", stored.role()).put("content", stored.content()));
+            }
+            input.put(new JSONObject().put("role", "user").put("content", userContent));
+            answer = this.runToolLoop(chat, instructions, input);
+            this.repository.appendMessage(this.config.modelName, chat.chatKey(), "user", userContent);
+            this.repository.appendMessage(this.config.modelName, chat.chatKey(), "assistant", answer);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return ERROR_ANSWER;
+        } catch (OpenAIException e) {
+            this.logger.error("OpenAI request failed: " + e.getMessage());
+            return ERROR_ANSWER;
+        } catch (RuntimeException e) {
+            this.logger.error("Chat turn failed", e);
+            return ERROR_ANSWER;
+        } finally {
+            lock.unlock();
+        }
+        this.maintainMemory(chat, message, answer);
+        return answer;
+    }
+
+    /**
+     * Let the model run tools until it gives a final answer.
+     */
+    private String runToolLoop(ChatContext chat, String instructions, JSONArray input) throws OpenAIException, InterruptedException {
+        JSONArray toolDefinitions = this.tools.definitions(chat);
+        if (this.config.webSearch && !chat.isGuest()) {
+            toolDefinitions.put(new JSONObject().put("type", "web_search"));
+        }
+        JSONObject request = this.baseRequest(this.config.textModel, instructions, input);
+        if (!toolDefinitions.isEmpty()) {
+            request.put("tools", toolDefinitions);
+        }
+        AgentResponse response = this.client.createResponse(request);
+        int round = 0;
+        while (response.hasFunctionCalls()) {
+            if (++round > this.config.maxToolRounds) {
+                this.logger.warning("Tool limit reached for " + chat.name());
+                /* ask for a final answer without tools */
+                JSONArray outputs = this.toolOutputs(response, chat, true);
+                JSONObject last = this.baseRequest(this.config.textModel, instructions, outputs)
+                        .put("previous_response_id", response.id())
+                        .put("tools", toolDefinitions)
+                        .put("tool_choice", "none");
+                response = this.client.createResponse(last);
+                break;
+            }
+            JSONArray outputs = this.toolOutputs(response, chat, false);
+            JSONObject next = this.baseRequest(this.config.textModel, instructions, outputs)
+                    .put("previous_response_id", response.id())
+                    .put("tools", toolDefinitions);
+            response = this.client.createResponse(next);
+        }
+        String text = response.text();
+        if (text.isBlank()) {
+            this.logger.warning("Empty answer from model, status " + response.status());
+            return "…";
+        }
+        return text;
+    }
+
+    private JSONArray toolOutputs(AgentResponse response, ChatContext chat, boolean limitReached) {
+        JSONArray outputs = new JSONArray();
+        for (AgentResponse.FunctionCall call : response.functionCalls()) {
+            String output = limitReached
+                    ? new JSONObject().put("success", false).put("error", "Tool limit reached, answer with what you know").toString()
+                    : this.tools.execute(call, chat);
+            outputs.put(new JSONObject().put("type", "function_call_output").put("call_id", call.callId()).put("output", output));
+        }
+        return outputs;
+    }
+
+    private JSONObject baseRequest(String model, String instructions, Object input) {
+        JSONObject request = new JSONObject()
+                .put("model", model)
+                .put("instructions", instructions)
+                .put("input", input)
+                .put("truncation", "auto");
+        if (!this.config.reasoningEffort.isEmpty()) {
+            request.put("reasoning", new JSONObject().put("effort", this.config.reasoningEffort));
+        }
+        return request;
+    }
+
+    /**
+     * Personality, situation, memories and rules.
+     */
+    String buildInstructions(ChatContext chat, String message) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(this.config.personality.trim()).append("\n\n");
+        builder.append("## Situation\n");
+        builder.append("- Now: ").append(NOW_FORMAT.format(ZonedDateTime.now(this.zone))).append(" (").append(this.zone).append(")\n");
+        builder.append("- Channel: ").append(chat.source().name()).append('\n');
+        if (chat.isInternal()) {
+            builder.append("- This is an internal request of the STEM system, not a chat with a person.\n");
+        } else if (chat.isGuest()) {
+            builder.append("- You are talking to ").append(chat.displayName()).append(", a guest you do not know. Be friendly but do not reveal private information about the household.\n");
+        } else {
+            builder.append("- You are talking to ").append(chat.name()).append(" (registered user, chat name ").append(chat.displayName()).append(").\n");
+            builder.append("- Permissions: ").append(permissions(chat)).append('\n');
+        }
+        builder.append('\n').append(this.memorySection(chat, message));
+        MemoryRepository.Summary summary = this.repository.loadSummary(this.config.modelName, chat.chatKey());
+        if (!summary.text().isBlank()) {
+            builder.append("## Earlier in this chat\n").append(summary.text().trim()).append("\n\n");
+        }
+        builder.append(RULES);
+        return builder.toString();
+    }
+
+    private String memorySection(ChatContext chat, String message) {
+        if (this.config.memoryContextSize == 0) {
+            return "";
+        }
+        String owner = chat.memoryOwner();
+        Map<Integer, MemoryEntry> selected = new LinkedHashMap<>();
+        /* the most important facts about the person are always present */
+        for (MemoryEntry entry : this.memory.important(owner, 4, 5)) {
+            selected.put(entry.id(), entry);
+        }
+        List<String> owners = chat.isGuest() ? List.of(owner) : List.of(owner, LongTermMemory.GLOBAL);
+        float[] vector = this.memory.embedQuery(message);
+        for (LongTermMemory.ScoredMemory scored : this.memory.search(owners, message, vector, this.config.memoryContextSize)) {
+            selected.putIfAbsent(scored.entry().id(), scored.entry());
+        }
+        if (selected.isEmpty()) {
+            return "## Long term memory\nNothing relevant remembered yet.\n\n";
+        }
+        StringBuilder personal = new StringBuilder();
+        StringBuilder household = new StringBuilder();
+        for (MemoryEntry entry : selected.values()) {
+            StringBuilder target = entry.isGlobal() ? household : personal;
+            target.append("- #").append(entry.id()).append(" [").append(entry.category()).append("] ").append(entry.content()).append('\n');
+        }
+        this.background.accept(() -> this.memory.markUsed(selected.values()));
+        StringBuilder section = new StringBuilder("## Long term memory\n");
+        if (!personal.isEmpty()) {
+            section.append("About ").append(chat.name()).append(":\n").append(personal);
+        }
+        if (!household.isEmpty()) {
+            section.append("Household:\n").append(household);
+        }
+        return section.append('\n').toString();
+    }
+
+    private static String permissions(ChatContext chat) {
+        List<String> names = new ArrayList<>();
+        for (AiPermissions permission : AiPermissions.values()) {
+            if (chat.has(permission)) {
+                names.add(permission.name());
+            }
+        }
+        return names.isEmpty() ? "none" : String.join(", ", names);
+    }
+
+    private void maintainMemory(ChatContext chat, String message, String answer) {
+        if (chat.isInternal()) {
+            return;
+        }
+        this.background.accept(() -> {
+            if (this.config.autoMemory) {
+                this.keeper.extract(chat.memoryOwner(), chat.name(), chat.has(AiPermissions.LONG_TERM_MEMORY_WRITE), message, answer);
+            }
+            this.keeper.summarizeIfNeeded(chat.chatKey());
+        });
+    }
+
+    /**
+     * One-shot text without tools and without chat history, e.g. for notifications.
+     *
+     * @param task  what to write
+     * @param owner memory owner whose important memories are added as context, may be null
+     */
+    public String generate(String task, String owner) throws OpenAIException, InterruptedException {
+        StringBuilder instructions = new StringBuilder(this.config.personality.trim()).append("\n\n");
+        instructions.append("- Now: ").append(NOW_FORMAT.format(ZonedDateTime.now(this.zone))).append('\n');
+        if (owner != null) {
+            List<MemoryEntry> important = this.memory.important(owner, 3, 8);
+            if (!important.isEmpty()) {
+                instructions.append("\nWhat you know about the recipient:\n");
+                important.forEach(entry -> instructions.append("- ").append(entry.content()).append('\n'));
+            }
+        }
+        JSONObject request = this.baseRequest(this.config.textModel, instructions.toString(), task).put("store", false);
+        return this.client.createResponse(request).text();
+    }
+
+    /**
+     * One-shot structured output.
+     *
+     * @param schema JSON schema of the result (strict)
+     */
+    public JSONObject generateJson(String task, String schemaName, JSONObject schema) throws OpenAIException, InterruptedException {
+        JSONObject format = new JSONObject().put("type", "json_schema").put("name", schemaName).put("schema", schema).put("strict", true);
+        JSONObject request = this.baseRequest(this.config.textModel, this.config.personality, task)
+                .put("store", false)
+                .put("text", new JSONObject().put("format", format));
+        return new JSONObject(this.client.createResponse(request).text());
+    }
+}

@@ -34,7 +34,11 @@ public class IdentityUser {
     }
 
     public boolean hasPermission(AiPermissions aiPermissions) {
-        return this.aiPermissionsList.contains(aiPermissions);
+        if (this.aiPermissionsList.contains(aiPermissions)) {
+            return true;
+        }
+        /* administrators may read everything they may change */
+        return aiPermissions == AiPermissions.STEM_READ && this.aiPermissionsList.contains(AiPermissions.STEM_ADMIN);
     }
 
     public boolean hasUserToken(UserToken userToken) {

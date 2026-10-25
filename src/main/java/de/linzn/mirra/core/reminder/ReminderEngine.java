@@ -19,7 +19,10 @@ import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -117,6 +120,37 @@ public class ReminderEngine implements Runnable {
         } catch (SQLException e) {
             this.plugin.getPluginLogger().error("Unable to disable reminder " + mirraReminder.getId(), e);
         }
+    }
+
+    /**
+     * @return active reminders of a user token, earliest first
+     */
+    public List<MirraReminder> getReminders(UserToken userToken) {
+        List<MirraReminder> reminders = new ArrayList<>();
+        for (MirraReminder reminder : this.activeReminderQueue) {
+            if (reminder.getUserToken() != null && reminder.getUserToken().getId() == userToken.getId()
+                    && reminder.getUserToken().getSource() == userToken.getSource()
+                    && reminder.getUserToken().getName().equals(userToken.getName())) {
+                reminders.add(reminder);
+            }
+        }
+        reminders.sort(Comparator.comparing(MirraReminder::getReminderDate));
+        return reminders;
+    }
+
+    /**
+     * Cancel an active reminder of the user token.
+     *
+     * @return false if no such reminder exists
+     */
+    public boolean cancelReminder(int id, UserToken userToken) {
+        for (MirraReminder reminder : this.getReminders(userToken)) {
+            if (reminder.getId() == id) {
+                this.disableMirraReminder(reminder);
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

@@ -12,6 +12,18 @@
 
 package de.linzn.mirra.identitySystem;
 
+/**
+ * Permissions of an identity, stored in plugin_mirra_identity_user_permissions.
+ */
 public enum AiPermissions {
-    LONG_TERM_MEMORY_WRITE, LONG_TERM_MEMORY_ACCESS, SWITCH_LIGHT, STATUS_LIGHT, STATUS_STEM, CREATE_IMAGE, CREATE_REMINDER, GET_FUEL_PRICE, GET_WEATHER
+    LONG_TERM_MEMORY_WRITE, LONG_TERM_MEMORY_ACCESS, SWITCH_LIGHT, STATUS_LIGHT, STATUS_STEM, CREATE_IMAGE, CREATE_REMINDER, GET_FUEL_PRICE, GET_WEATHER,
+    /**
+     * Read the state of STEM: plugins, health checks, information blocks, notifications, devices, smart home profile.
+     */
+    STEM_READ,
+    /**
+     * Control STEM: console commands, scripts, MQTT messages, notifications, information blocks, all devices,
+     * smart home profile, health checks. Includes everything of STEM_READ.
+     */
+    STEM_ADMIN
 }

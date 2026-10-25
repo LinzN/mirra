@@ -1,0 +1,141 @@
+/*
+ * Copyright (c) 2026 MirraNET, Niklas Linz. All rights reserved.
+ *
+ * This file is part of the MirraNET project and is licensed under the
+ * GNU Lesser General Public License v3.0 (LGPLv3).
+ *
+ * You may use, distribute and modify this code under the terms
+ * of the LGPLv3 license. You should have received a copy of the
+ * license along with this file. If not, see <https://www.gnu.org/licenses/lgpl-3.0.html>
+ * or contact: niklas.linz@mirranet.de
+ */
+
+package de.linzn.mirra;
+
+import de.linzn.simplyConfiguration.FileConfiguration;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * All settings of Mirra, read once at startup. Missing keys are written with their default value.
+ */
+public final class MirraConfig {
+
+    /* OpenAI */
+    public final String openAIToken;
+    public final String openAIBaseUrl;
+    public final int openAITimeoutSeconds;
+
+    /* model */
+    public final String modelName;
+    public final String textModel;
+    public final String memoryModel;
+    public final String embeddingModel;
+    public final String imageModel;
+    public final String reasoningEffort;
+    public final String personality;
+    public final String defaultIdentityName;
+
+    /* agent */
+    public final int maxToolRounds;
+    public final int historyMessages;
+    public final boolean webSearch;
+    public final List<String> blockedCommands;
+    public final int commandTimeoutSeconds;
+    public final int scriptTimeoutSeconds;
+
+    /* memory */
+    public final boolean autoMemory;
+    public final int summaryThreshold;
+    public final int memoryContextSize;
+
+    /* social status */
+    public final boolean socialStatusEnabled;
+    public final String socialStatusCron;
+    public final boolean socialStatusOnStartup;
+
+    public MirraConfig(FileConfiguration config) {
+        this.openAIToken = string(config, "openAI.token", "xxxx");
+        this.openAIBaseUrl = trimSlash(string(config, "openAI.baseUrl", "https://api.openai.com/v1"));
+        this.openAITimeoutSeconds = Math.max(10, integer(config, "openAI.timeoutSeconds", 120));
+
+        this.modelName = string(config, "default.model", "mirra");
+        this.defaultIdentityName = string(config, "default.identityName", "Niklas");
+        String prefix = "model." + this.modelName + ".";
+        this.textModel = string(config, prefix + "textOpenAIModel", "gpt-4.1");
+        this.imageModel = string(config, prefix + "imageOpenAIModel", "dall-e-3");
+        this.personality = string(config, prefix + "aiRoleDescription", "You are Mirra, a helpful smart home assistant.");
+        this.memoryModel = string(config, prefix + "memoryModel", this.textModel);
+        this.embeddingModel = string(config, prefix + "embeddingModel", "text-embedding-3-small");
+        this.reasoningEffort = string(config, prefix + "reasoningEffort", "").trim().toLowerCase(Locale.ROOT);
+
+        this.maxToolRounds = clamp(integer(config, "agent.maxToolRounds", 10), 1, 30);
+        this.historyMessages = clamp(integer(config, "agent.historyMessages", 16), 2, 100);
+        this.webSearch = bool(config, "agent.webSearch", false);
+        this.blockedCommands = stringList(config, "agent.blockedCommands", List.of("stop", "reboot"));
+        this.commandTimeoutSeconds = clamp(integer(config, "agent.commandTimeoutSeconds", 60), 1, 600);
+        this.scriptTimeoutSeconds = clamp(integer(config, "agent.scriptTimeoutSeconds", 120), 1, 3600);
+
+        this.autoMemory = bool(config, "memory.autoExtract", true);
+        this.summaryThreshold = clamp(integer(config, "memory.summaryThreshold", 40), 10, 500);
+        this.memoryContextSize = clamp(integer(config, "memory.contextSize", 12), 0, 50);
+
+        this.socialStatusEnabled = bool(config, "agent.socialStatus.enabled", true);
+        this.socialStatusCron = string(config, "agent.socialStatus.cron", "0 14 * * *");
+        this.socialStatusOnStartup = bool(config, "agent.socialStatus.onStartup", true);
+        config.save();
+    }
+
+    private static String trimSlash(String url) {
+        String result = url.trim();
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    /* the YAML provider returns numbers, booleans and strings as written, so values are converted here */
+    static String string(FileConfiguration config, String path, String def) {
+        Object value = config.get(path, def);
+        return value == null ? def : String.valueOf(value);
+    }
+
+    static int integer(FileConfiguration config, String path, int def) {
+        Object value = config.get(path, def);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
+            return def;
+        }
+    }
+
+    static boolean bool(FileConfiguration config, String path, boolean def) {
+        Object value = config.get(path, def);
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        return value == null ? def : Boolean.parseBoolean(String.valueOf(value).trim());
+    }
+
+    static List<String> stringList(FileConfiguration config, String path, List<String> def) {
+        Object value = config.get(path, new ArrayList<>(def));
+        List<String> result = new ArrayList<>();
+        if (value instanceof List<?> list) {
+            for (Object entry : list) {
+                if (entry != null) {
+                    result.add(String.valueOf(entry).trim().toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
+}
