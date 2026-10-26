@@ -17,6 +17,7 @@ import de.linzn.mirra.MirraPlugin;
 import de.linzn.stem.api.StemApi;
 import de.linzn.stem.api.cloud.CloudFileHandle;
 import de.linzn.stem.api.mqtt.MqttSubscription;
+import de.linzn.stem.api.system.LogEntry;
 import de.linzn.stem.modules.databaseModule.DataContainer;
 import de.linzn.stem.modules.informationModule.InformationBlock;
 import de.linzn.stem.utils.ProcessOutput;
@@ -198,6 +199,58 @@ public final class ControlTools {
             synchronized (messages) {
                 return new JSONObject().put("messages", new JSONArray(messages)).put("connected", api.mqtt().isConnected());
             }
+        }));
+
+        /* log */
+        tools.add(new SimpleTool("stem_read_log",
+                "Read the latest entries of the STEM log (all plugins). Use it to find the cause of errors.",
+                Schema.object()
+                        .prop("max", nullable(integer("number of entries, default 50, at most 300")))
+                        .prop("level", nullable(enumeration("minimum level, default warning", List.of("all", "info", "warning", "error"))))
+                        .prop("contains", nullable(string("only entries containing this text, e.g. a plugin name")))
+                        .build(),
+                anyOf(STEM_VIEW), (chat, args) -> {
+            Integer maxArg = optInt(args, "max");
+            int max = maxArg == null ? 50 : Math.max(1, Math.min(300, maxArg));
+            String level = Optional.ofNullable(optString(args, "level")).orElse("warning");
+            int minLevel = switch (level) {
+                case "all" -> 0;
+                case "info" -> 800;
+                case "error" -> 1000;
+                default -> 900;
+            };
+            String contains = optString(args, "contains");
+            JSONArray entries = new JSONArray();
+            List<LogEntry> log = api.system().getRecentLog(contains == null ? max : 5000, minLevel);
+            List<LogEntry> filtered = new ArrayList<>();
+            for (LogEntry entry : log) {
+                if (contains == null || (entry.message() != null && entry.message().toLowerCase(Locale.ROOT).contains(contains.toLowerCase(Locale.ROOT)))) {
+                    filtered.add(entry);
+                }
+            }
+            for (LogEntry entry : filtered.subList(Math.max(0, filtered.size() - max), filtered.size())) {
+                String message = entry.message() == null ? "" : entry.message();
+                entries.put(new JSONObject().put("time", entry.time().atZone(api.system().getZone()).toLocalDateTime().toString())
+                        .put("level", entry.level()).put("message", message.length() > 1000 ? message.substring(0, 1000) + "..." : message));
+            }
+            return new JSONObject().put("entries", entries);
+        }));
+
+        /* OpenAI credits and the watchdog */
+        tools.add(new SimpleTool("openai_usage",
+                "Mirra's own OpenAI usage: tokens per model today and this month and, with an admin key, costs, budget and the "
+                        + "estimated remaining credit. Use it when somebody asks about tokens, credits, costs or the budget.",
+                Schema.empty(), anyOf(ADMIN), (chat, args) -> plugin.getBillingMonitor().report()));
+
+        tools.add(new SimpleTool("watchdog_status",
+                "Status of Mirra's automatic STEM watchdog (which reacts to failed health checks and errors in the log); "
+                        + "optionally run a check now.",
+                Schema.object().prop("check_now", nullable(bool("true to look for new problems right now"))).build(),
+                anyOf(ADMIN), (chat, args) -> {
+            if (Boolean.TRUE.equals(optBool(args, "check_now"))) {
+                api.scheduler().runAsync(plugin.getWatchdog()::check);
+            }
+            return new JSONObject(plugin.getWatchdog().status()).put("enabled", config.autonomyEnabled);
         }));
 
         /* shell */

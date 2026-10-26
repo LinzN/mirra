@@ -28,6 +28,9 @@ import de.linzn.mirra.agent.ChatContext;
 import de.linzn.mirra.agent.ImageService;
 import de.linzn.mirra.agent.MirraAgent;
 import de.linzn.mirra.agent.attachment.AttachmentProcessor;
+import de.linzn.mirra.agent.autonomy.BillingMonitor;
+import de.linzn.mirra.agent.autonomy.UsageTracker;
+import de.linzn.mirra.agent.autonomy.Watchdog;
 import de.linzn.mirra.messaging.ChatMessenger;
 import de.linzn.mirra.messaging.MessengerException;
 import de.linzn.mirra.agent.openai.OpenAIClient;
@@ -79,6 +82,9 @@ public class MirraPlugin extends STEMPlugin {
     private ChatMessenger messenger;
     private TaskManager taskManager;
     private AccessControl accessControl;
+    private UsageTracker usageTracker;
+    private BillingMonitor billingMonitor;
+    private Watchdog watchdog;
 
     public MirraPlugin() {
         mirraPlugin = this;
@@ -120,6 +126,13 @@ public class MirraPlugin extends STEMPlugin {
         this.accessControl = new AccessControl(this, this.mirraConfig);
 
         OpenAIClient client = new OpenAIClient(this.mirraConfig.openAIBaseUrl, this.mirraConfig.openAIToken, this.mirraConfig.openAITimeoutSeconds);
+        this.usageTracker = new UsageTracker(this.getStemApi());
+        this.usageTracker.load();
+        client.setUsageListener((model, endpoint, input, output) -> this.usageTracker.record(model, input, output));
+        this.billingMonitor = new BillingMonitor(this, this.mirraConfig, client, this.usageTracker);
+        client.setErrorListener(this.billingMonitor::onError);
+        this.getStemApi().scheduler().runRepeating(this.usageTracker::saveIfDirty, 5, 5, java.util.concurrent.TimeUnit.MINUTES);
+        this.getStemApi().scheduler().runCron(this.billingMonitor::check, this.mirraConfig.billingCheckCron);
         LongTermMemory memory = new LongTermMemory(repository, new LongTermMemory.Embedder() {
             @Override
             public List<float[]> embed(List<String> texts) throws Exception {
@@ -162,6 +175,10 @@ public class MirraPlugin extends STEMPlugin {
         this.taskManager = new TaskManager(this, new TaskRepository(this.getStemApi().data(), this.getPluginLogger()));
         this.taskManager.start();
         this.getStemApi().events().register(new TaskEventListener(this.taskManager));
+        this.watchdog = new Watchdog(this, this.mirraConfig, this.billingMonitor);
+        if (this.mirraConfig.autonomyEnabled) {
+            this.watchdog.start();
+        }
         this.registerAiTextEngine();
         this.scheduleSocialStatus();
     }
@@ -170,6 +187,13 @@ public class MirraPlugin extends STEMPlugin {
     public void onDisable() {
         if (this.taskManager != null) {
             this.taskManager.stop();
+        }
+        if (this.usageTracker != null) {
+            try {
+                this.usageTracker.saveIfDirty();
+            } catch (Exception e) {
+                this.getPluginLogger().warning("Could not save OpenAI usage: " + e.getMessage());
+            }
         }
         if (this.discordManager != null) {
             this.discordManager.shutdown();
@@ -268,6 +292,39 @@ public class MirraPlugin extends STEMPlugin {
      */
     public TaskManager getTaskManager() {
         return taskManager;
+    }
+
+    public BillingMonitor getBillingMonitor() {
+        return billingMonitor;
+    }
+
+    public Watchdog getWatchdog() {
+        return watchdog;
+    }
+
+    /**
+     * Send a plain message (no AI) to the approver, e.g. alerts when OpenAI is not usable.
+     *
+     * @param stemNotification also push it as STEM notification
+     */
+    public void notifyApprover(String text, boolean stemNotification) {
+        this.getPluginLogger().warning(text);
+        if (stemNotification) {
+            try {
+                this.getStemApi().notifications().push(text, de.linzn.stem.modules.notificationModule.NotificationPriority.HIGH);
+            } catch (Exception e) {
+                this.getPluginLogger().debug("Could not push STEM notification: " + e.getMessage());
+            }
+        }
+        try {
+            java.util.Optional<de.linzn.mirra.identitySystem.UserToken> token = this.identityManager.findIdentity(this.mirraConfig.approverName)
+                    .flatMap(user -> this.messenger.tokenOf(user, null));
+            if (token.isPresent()) {
+                this.messenger.sendText(token.get(), text);
+            }
+        } catch (Exception e) {
+            this.getPluginLogger().warning("Could not notify the approver: " + e.getMessage());
+        }
     }
 
     public AccessControl getAccessControl() {

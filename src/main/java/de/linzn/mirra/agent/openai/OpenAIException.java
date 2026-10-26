@@ -21,9 +21,37 @@ public class OpenAIException extends Exception {
     /* value of the Retry-After header, -1 if not present */
     int retryAfterSeconds = -1;
 
+    /* error code of the API, e.g. insufficient_quota, may be null */
+    private final String errorCode;
+
     public OpenAIException(int statusCode, String message) {
+        this(statusCode, message, null);
+    }
+
+    public OpenAIException(int statusCode, String message, String errorCode) {
         super(statusCode > 0 ? "OpenAI HTTP " + statusCode + ": " + message : message);
         this.statusCode = statusCode;
+        this.errorCode = errorCode;
+    }
+
+    public String getErrorCode() {
+        return errorCode;
+    }
+
+    /**
+     * @return true if the account has no credits left or reached its hard limit
+     */
+    public boolean isQuotaExceeded() {
+        String message = String.valueOf(this.getMessage()).toLowerCase(java.util.Locale.ROOT);
+        return "insufficient_quota".equals(this.errorCode) || "billing_hard_limit_reached".equals(this.errorCode)
+                || message.contains("exceeded your current quota") || message.contains("billing hard limit");
+    }
+
+    /**
+     * @return true if the API key is missing, invalid or revoked
+     */
+    public boolean isAuthError() {
+        return this.statusCode == 401;
     }
 
     /**

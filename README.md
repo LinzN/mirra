@@ -26,6 +26,10 @@ across chats and turns STEM system events into readable messages.
 - **Voice**: text to speech with an OpenAI voice, optionally as answer to every voice message
 - **Tasks**: Mirra plans tasks for later, on a schedule or on events (e.g. "switch the 3D printer off when the
   print is finished") and carries them out herself (see [Tasks](#tasks))
+- **Watchdog**: Mirra notices failed health checks and errors in the STEM log, analyzes them, fixes what is
+  safe and reports to the approver (see [Watchdog](#watchdog))
+- **Credits**: alerts when OpenAI credits are used up or run low, token and cost overview
+  (see [OpenAI credits](#openai-credits))
 - **Shell**: commands on the STEM server and via SSH on other machines (separate `SHELL` permission)
 - **Memory** in three layers (see [Memory](#memory))
 - **Reminders**: due reminders are sent to the user on Discord or WhatsApp
@@ -100,6 +104,9 @@ model for a final answer without tools.
 | `list_event_types`        | `STEM_VIEW`                                  | STEM events seen so far with example data           |
 | `list_tasks`              | registered users (all users: `ADMIN`)   | Planned tasks                                       |
 | `cancel_task`             | owner or `ADMIN`                             | Cancels a planned task                              |
+| `stem_read_log`           | `STEM_VIEW`                                  | Latest STEM log entries, filtered by level and text |
+| `openai_usage`            | `ADMIN`                                      | Tokens per model, costs, budget, remaining credit   |
+| `watchdog_status`         | `ADMIN`                                      | Watchdog status, check now                          |
 | `shell_run`               | `SHELL`                                      | Shell command on the STEM server or via SSH         |
 | `home_list_devices`       | `HOME_VIEW`                                  | Devices of home-devices with state                  |
 | `home_get_device`         | `HOME_VIEW`                                  | Details of one device                               |

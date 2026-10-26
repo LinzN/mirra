@@ -48,6 +48,7 @@ import java.util.function.Consumer;
 public class MirraAgent {
 
     private static final DateTimeFormatter NOW_FORMAT = DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy HH:mm", Locale.GERMAN);
+    private static final String QUOTA_ANSWER = "Sorry, mein OpenAI-Guthaben ist gerade aufgebraucht 😕 Der Admin ist informiert.";
     private static final String ERROR_ANSWER = "Entschuldige, da ist gerade etwas schiefgelaufen. Bitte versuch es gleich noch einmal.";
 
     private static final String RULES = """
@@ -61,6 +62,8 @@ public class MirraAgent {
               in the chat: do not repeat them in your text answer.
             - For anything that should happen later, regularly or when something happens, plan it with create_task.
               Any event of any STEM plugin can be a trigger (see list_event_types), also with a condition on its data.
+            - Messages starting with "(Automatic STEM watchdog" come from your own monitoring, not from a person: act as
+              described there and report to the person named in it.
             - When an administrator says that somebody may (no longer) do something, translate it into permissions
               (list_permissions) and change them with set_user_permissions; then say exactly what changed.
             - Your long term memory is maintained automatically after each message. Use `remember` when somebody
@@ -181,6 +184,9 @@ public class MirraAgent {
             return ERROR_ANSWER;
         } catch (OpenAIException e) {
             this.logger.error("OpenAI request failed: " + e.getMessage());
+            if (e.isQuotaExceeded()) {
+                return QUOTA_ANSWER;
+            }
             return ERROR_ANSWER;
         } catch (RuntimeException e) {
             this.logger.error("Chat turn failed", e);
