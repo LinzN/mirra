@@ -98,7 +98,7 @@ model for a final answer without tools.
 | `merge_users`             | `ADMIN`                                      | Merges two profiles of the same person              |
 | `create_task`             | registered users                             | Plans a task at a time, on a cron schedule or on an event |
 | `list_event_types`        | `STEM_VIEW`                                  | STEM events seen so far with example data           |
-| `list_tasks`              | registered users (all users: `ADMIN`     )   | Planned tasks                                       |
+| `list_tasks`              | registered users (all users: `ADMIN`)   | Planned tasks                                       |
 | `cancel_task`             | owner or `ADMIN`                             | Cancels a planned task                              |
 | `shell_run`               | `SHELL`                                      | Shell command on the STEM server or via SSH         |
 | `home_list_devices`       | `HOME_VIEW`                                  | Devices of home-devices with state                  |
@@ -114,8 +114,8 @@ model for a final answer without tools.
 | `recall`                  | `MEMORY`                                             | Searches the long term memory              |
 | `create_image`            | `IMAGES`                                     | Generates an image and sends it into the chat (link elsewhere); a copy is stored in the cloud under `/GeneratedImages/` |
 | `send_message`            | `ADMIN`                                      | Text message to another registered user             |
-| `send_file`               | registered users (others: `ADMIN`     , server files: `SHELL`) | Sends a file from text, a server path or a URL |
-| `send_voice_message`      | registered users (others: `ADMIN`     )      | Speaks a text and sends it as voice message         |
+| `send_file`               | registered users (others: `ADMIN`, server files: `SHELL`) | Sends a file from text, a server path or a URL |
+| `send_voice_message`      | registered users (others: `ADMIN`)      | Speaks a text and sends it as voice message         |
 | `set_mirra_status`        | no guests                                    | Sets the Discord activity and a WhatsApp status     |
 
 Higher permissions include lower ones (see [Permissions](#permissions-in-the-chat)). `SHELL` is separate and not
