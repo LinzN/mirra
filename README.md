@@ -8,6 +8,8 @@ Mirra is an AI agent based on the OpenAI [Responses API](https://platform.openai
 She talks to people on Discord and WhatsApp, controls STEM and its smart home, remembers what people tell her
 across chats and turns STEM system events into readable messages.
 
+See [docs/security/SECURITY.md](docs/security/SECURITY.md) for permissions, data flows and the risk analysis.
+
 ---
 
 ## Features
