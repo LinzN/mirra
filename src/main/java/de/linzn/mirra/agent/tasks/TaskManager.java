@@ -19,6 +19,8 @@ import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.stem.api.StemApi;
 import de.linzn.stem.api.mqtt.MqttSubscription;
 import de.linzn.stem.api.scheduler.ScheduledTask;
+import de.linzn.stem.modules.eventModule.StemEvent;
+import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
@@ -30,6 +32,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Plans and runs agent tasks. A task is an instruction Mirra carries out as if the owner had just asked for it,
@@ -53,18 +56,30 @@ public class TaskManager {
     private final Map<Integer, ScheduledTask> timers = new ConcurrentHashMap<>();
     private final Map<Integer, MqttSubscription> subscriptions = new ConcurrentHashMap<>();
     private final Map<String, Boolean> deviceStates = new ConcurrentHashMap<>();
+    /* last result of the condition per task, a task with a condition triggers when it becomes true */
+    private final Map<Integer, Boolean> conditionStates = new ConcurrentHashMap<>();
+    private final EventCatalog catalog;
+
+    /** Answer of Mirra when a task had nothing to report; such answers are not sent. */
+    public static final String NO_REPORT = "NO_REPORT";
 
     public TaskManager(MirraPlugin plugin, TaskRepository repository) {
         this.plugin = plugin;
         this.repository = repository;
         this.api = plugin.getStemApi();
         this.zone = this.api.system().getZone();
+        this.catalog = new EventCatalog(this.api);
+    }
+
+    public EventCatalog getCatalog() {
+        return catalog;
     }
 
     /**
      * Load and arm all active tasks.
      */
     public void start() {
+        this.catalog.load();
         for (AgentTask task : this.repository.loadActive()) {
             this.tasks.put(task.id(), task);
             this.arm(task, true);
@@ -73,6 +88,11 @@ public class TaskManager {
     }
 
     public void stop() {
+        try {
+            this.catalog.save();
+        } catch (Exception e) {
+            this.plugin.getPluginLogger().warning("Could not save the event catalog: " + e.getMessage());
+        }
         this.timers.values().forEach(ScheduledTask::cancel);
         this.subscriptions.values().forEach(MqttSubscription::unsubscribe);
         this.timers.clear();
@@ -85,7 +105,8 @@ public class TaskManager {
      * @throws IllegalArgumentException if the trigger is invalid
      */
     public AgentTask create(ChatContext owner, String instruction, String triggerType, LocalDateTime runAt, String cron,
-                            String eventType, String device, String matchValue, String topic, boolean repeating) throws SQLException {
+                            String eventType, String device, String matchValue, String topic, boolean repeating,
+                            String eventName, AgentTask.Condition condition) throws SQLException {
         if (owner.isGuest() || owner.isInternal()) {
             throw new IllegalArgumentException("Only registered users can create tasks");
         }
@@ -113,12 +134,23 @@ public class TaskManager {
                 if (eventType.equals("mqtt") && (topic == null || topic.isBlank())) {
                     throw new IllegalArgumentException("An mqtt event needs a topic");
                 }
+                if (eventType.equals("stem_event") && (eventName == null || eventName.isBlank())) {
+                    throw new IllegalArgumentException("A stem_event task needs event_name, see list_event_types");
+                }
+                if (condition != null && !eventType.equals("stem_event") && !eventType.equals("mqtt")) {
+                    throw new IllegalArgumentException("Conditions are only possible for stem_event and mqtt");
+                }
             }
             default -> throw new IllegalArgumentException("trigger_type must be time, cron or event");
         }
+        if (condition != null && (condition.field() == null || condition.field().isBlank() || condition.value() == null
+                || !AgentTask.Condition.OPERATORS.contains(condition.operator()))) {
+            throw new IllegalArgumentException("A condition needs field, value and one of the operators " + AgentTask.Condition.OPERATORS);
+        }
         AgentTask task = new AgentTask(0, owner.userToken().getSource().name(), owner.userToken().getName(), owner.name(),
                 instruction.trim(), triggerType, runAt, blankToNull(cron), eventType, blankToNull(device), blankToNull(matchValue),
-                blankToNull(topic), repeating || AgentTask.CRON.equals(triggerType), LocalDateTime.now(this.zone), null, 0);
+                blankToNull(topic), repeating || AgentTask.CRON.equals(triggerType), LocalDateTime.now(this.zone), null, 0,
+                blankToNull(eventName), condition);
         if (AgentTask.CRON.equals(triggerType)) {
             /* validate the pattern before storing */
             ScheduledTask probe = this.api.scheduler().runCron(() -> {
@@ -192,7 +224,17 @@ public class TaskManager {
                             return;
                         }
                         String text = new String(payload, StandardCharsets.UTF_8);
-                        if (task.matchesValue(text)) {
+                        if (!task.matchesValue(text)) {
+                            return;
+                        }
+                        JSONObject data;
+                        try {
+                            data = new JSONObject(text);
+                        } catch (Exception e) {
+                            data = new JSONObject().put("payload", text);
+                        }
+                        data.put("topic", topic);
+                        if (this.conditionFires(task, data)) {
                             this.trigger(task, "MQTT message on " + topic + ": " + (text.length() > 500 ? text.substring(0, 500) + "..." : text));
                         }
                     }));
@@ -202,11 +244,51 @@ public class TaskManager {
         }
     }
 
+    /**
+     * @return true if the task has no condition, or its condition just became true
+     */
+    private boolean conditionFires(AgentTask task, JSONObject data) {
+        if (task.condition() == null) {
+            return true;
+        }
+        Boolean result = task.condition().test(data);
+        if (result == null) {
+            return false;
+        }
+        Boolean previous = this.conditionStates.put(task.id(), result);
+        return result && !Boolean.TRUE.equals(previous);
+    }
+
+    /**
+     * Called for every STEM event: updates the event catalog and runs stem_event tasks.
+     */
+    public void onStemEvent(StemEvent event) {
+        String name = event.getName();
+        JSONObject[] data = new JSONObject[1];
+        Supplier<JSONObject> describe = () -> {
+            if (data[0] == null) {
+                data[0] = EventInspector.describe(event);
+            }
+            return data[0];
+        };
+        this.catalog.seen(name, describe);
+        for (AgentTask task : this.tasks.values()) {
+            if (!AgentTask.EVENT.equals(task.triggerType()) || !"stem_event".equals(task.eventType()) || !name.equalsIgnoreCase(task.eventName())) {
+                continue;
+            }
+            String text = describe.get().toString();
+            if (task.matchesDevice(text) && task.matchesValue(text) && this.conditionFires(task, describe.get())) {
+                this.trigger(task, "STEM event " + name + ": " + (text.length() > 1500 ? text.substring(0, 1500) + "..." : text));
+            }
+        }
+    }
+
     private void disarm(int id) {
         ScheduledTask timer = this.timers.remove(id);
         if (timer != null) {
             timer.cancel();
         }
+        this.conditionStates.remove(id);
         MqttSubscription subscription = this.subscriptions.remove(id);
         if (subscription != null) {
             subscription.unsubscribe();
@@ -273,8 +355,13 @@ public class TaskManager {
                 + ". Trigger: " + task.describeTrigger() + ". What happened: " + details + ".)\n"
                 + "Task: " + task.instruction() + "\n"
                 + task.ownerName() + " already confirmed this task: carry it out now with your tools without asking back, "
-                + "then tell " + task.ownerName() + " in one or two short sentences what you did.";
+                + "then tell " + task.ownerName() + " in one or two short sentences what you did. "
+                + "If the task says to report only in certain cases and none of them applies, answer exactly " + NO_REPORT + ".";
         String answer = this.plugin.getAgent().chat(chat, message);
+        if (answer != null && answer.trim().toUpperCase(Locale.ROOT).startsWith(NO_REPORT)) {
+            this.plugin.getPluginLogger().debug("Task #" + task.id() + ": nothing to report");
+            return;
+        }
         this.plugin.deliverAnswer(chat, answer, false);
     }
 

@@ -14,6 +14,7 @@ package de.linzn.mirra.agent.tools;
 
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.agent.tasks.AgentTask;
+import de.linzn.mirra.agent.tasks.EventCatalog;
 import de.linzn.mirra.agent.tasks.TaskManager;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -23,10 +24,13 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static de.linzn.mirra.agent.tools.Schema.*;
+import static de.linzn.mirra.agent.tools.SimpleTool.anyOf;
 import static de.linzn.mirra.agent.tools.SimpleTool.notGuest;
 import static de.linzn.mirra.identitySystem.AiPermissions.STEM_ADMIN;
+import static de.linzn.mirra.identitySystem.AiPermissions.STEM_READ;
 
 /**
  * Tools to plan tasks Mirra carries out later or when something happens.
@@ -50,7 +54,11 @@ public final class TaskTools {
                         + "Use it for actions and checks; for a plain reminder text use create_reminder. Events: "
                         + "print_finished/print_failed/print_cancelled (3D printers, filter with device), device_on/device_off "
                         + "(a switch changed, filter with device), door_ring, information (an information block appears, filter its "
-                        + "text with match_value), mqtt (a message on topic, optional match_value in the payload).",
+                        + "text with match_value), mqtt (a message on topic, optional match_value in the payload), stem_event (any "
+                        + "event of any STEM plugin by its event_name, see list_event_types; device and match_value search the event "
+                        + "data). stem_event and mqtt tasks can have a condition on a field (e.g. environmentSensor.temperature < 18); "
+                        + "they then trigger when the condition becomes true, not on every event. For periodic checks use cron with an "
+                        + "instruction like 'Prüfe ..., melde dich nur wenn ...'.",
                 Schema.object()
                         .prop("instruction", string("what to do when the task triggers"))
                         .prop("trigger_type", enumeration("time, cron or event", List.of(AgentTask.TIME, AgentTask.CRON, AgentTask.EVENT)))
@@ -61,6 +69,10 @@ public final class TaskTools {
                         .prop("match_value", nullable(string("information/mqtt events: text that must be contained")))
                         .prop("topic", nullable(string("mqtt events: topic filter, + and # allowed")))
                         .prop("repeat", nullable(bool("event tasks: true to run on every event, default once")))
+                        .prop("event_name", nullable(string("stem_event tasks: event name from list_event_types")))
+                        .prop("condition_field", nullable(string("stem_event/mqtt: dotted field path in the event data or JSON payload")))
+                        .prop("condition_operator", nullable(enumeration("comparison", AgentTask.Condition.OPERATORS)))
+                        .prop("condition_value", nullable(string("value to compare with")))
                         .build(),
                 notGuest(), (chat, args) -> {
             String trigger = requireString(args, "trigger_type");
@@ -75,8 +87,30 @@ public final class TaskTools {
             }
             AgentTask task = manager(plugin).create(chat, requireString(args, "instruction"), trigger, runAt,
                     optString(args, "cron"), optString(args, "event"), optString(args, "device"), optString(args, "match_value"),
-                    optString(args, "topic"), Boolean.TRUE.equals(optBool(args, "repeat")));
+                    optString(args, "topic"), Boolean.TRUE.equals(optBool(args, "repeat")), optString(args, "event_name"),
+                    condition(args));
             return new JSONObject().put("created", true).put("task", describe(task));
+        }));
+
+        tools.add(new SimpleTool("list_event_types",
+                "List the STEM events that happened since Mirra runs (from all plugins), with how often they occur and an "
+                        + "example of their data. Use it to choose event_name, device, match_value or a condition for stem_event tasks.",
+                Schema.object().prop("filter", nullable(string("part of the event name"))).build(),
+                anyOf(STEM_READ), (chat, args) -> {
+            String filter = optString(args, "filter");
+            JSONArray list = new JSONArray();
+            for (EventCatalog.Entry entry : manager(plugin).getCatalog().list()) {
+                if (filter != null && !entry.name().toLowerCase(Locale.ROOT).contains(filter.toLowerCase(Locale.ROOT))) {
+                    continue;
+                }
+                list.put(new JSONObject().put("event_name", entry.name()).put("count", entry.count())
+                        .put("last_seen", OUTPUT.format(entry.lastSeen().atZone(plugin.getStemApi().system().getZone())))
+                        .put("example", entry.example()));
+                if (list.length() >= 60) {
+                    break;
+                }
+            }
+            return new JSONObject().put("events", list);
         }));
 
         tools.add(new SimpleTool("list_tasks",
@@ -102,6 +136,19 @@ public final class TaskTools {
             return new JSONObject().put("cancelled", true).put("task", describe(task));
         }));
         return tools;
+    }
+
+    private static AgentTask.Condition condition(JSONObject args) {
+        String field = optString(args, "condition_field");
+        if (field == null) {
+            return null;
+        }
+        String operator = optString(args, "condition_operator");
+        String value = optString(args, "condition_value");
+        if (operator == null || value == null) {
+            throw new IllegalArgumentException("A condition needs condition_field, condition_operator and condition_value");
+        }
+        return new AgentTask.Condition(field, operator, value);
     }
 
     private static TaskManager manager(MirraPlugin plugin) {

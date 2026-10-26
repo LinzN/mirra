@@ -45,7 +45,7 @@ public class TaskRepository {
                                 time(rs.getTimestamp("run_at")), rs.getString("cron"), rs.getString("event_type"),
                                 rs.getString("device"), rs.getString("match_value"), rs.getString("topic"),
                                 rs.getBoolean("repeating"), time(rs.getTimestamp("created")), time(rs.getTimestamp("last_run")),
-                                rs.getInt("run_count")));
+                                rs.getInt("run_count"), rs.getString("event_name"), condition(rs)));
                     }
                 }
                 return null;
@@ -59,7 +59,8 @@ public class TaskRepository {
     public AgentTask insert(AgentTask task) throws SQLException {
         return this.data.withConnection(connection -> {
             String sql = "INSERT INTO plugin_mirra_agent_task (owner_source, owner_token, owner_name, instruction, trigger_type, run_at, cron, "
-                    + "event_type, device, match_value, topic, repeating, active, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)";
+                    + "event_type, device, match_value, topic, repeating, active, created, event_name, condition_field, condition_operator, "
+                    + "condition_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)";
             try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 statement.setString(1, task.ownerSource());
                 statement.setString(2, task.ownerToken());
@@ -74,6 +75,10 @@ public class TaskRepository {
                 statement.setString(11, task.topic());
                 statement.setBoolean(12, task.repeating());
                 statement.setTimestamp(13, Timestamp.valueOf(task.created()));
+                statement.setString(14, task.eventName());
+                statement.setString(15, task.condition() == null ? null : task.condition().field());
+                statement.setString(16, task.condition() == null ? null : task.condition().operator());
+                statement.setString(17, task.condition() == null ? null : task.condition().value());
                 statement.executeUpdate();
                 try (ResultSet keys = statement.getGeneratedKeys()) {
                     if (keys.next()) {
@@ -105,6 +110,11 @@ public class TaskRepository {
         } catch (SQLException e) {
             this.logger.error("Could not update agent task #" + id, e);
         }
+    }
+
+    private static AgentTask.Condition condition(ResultSet rs) throws SQLException {
+        String field = rs.getString("condition_field");
+        return field == null ? null : new AgentTask.Condition(field, rs.getString("condition_operator"), rs.getString("condition_value"));
     }
 
     private static LocalDateTime time(Timestamp timestamp) {

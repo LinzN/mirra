@@ -118,8 +118,19 @@ public class DatabaseMemoryRepository implements MemoryRepository {
               created DATETIME NOT NULL,
               last_run DATETIME NULL,
               run_count INT NOT NULL DEFAULT 0,
+              event_name VARCHAR(128) NULL,
+              condition_field VARCHAR(191) NULL,
+              condition_operator VARCHAR(16) NULL,
+              condition_value VARCHAR(191) NULL,
               INDEX idx_mirra_agent_task_active (active)
             ) DEFAULT CHARSET=utf8mb4"""
+    };
+
+    private static final String[][] ADDED_COLUMNS = {
+            {"plugin_mirra_agent_task", "event_name", "VARCHAR(128) NULL"},
+            {"plugin_mirra_agent_task", "condition_field", "VARCHAR(191) NULL"},
+            {"plugin_mirra_agent_task", "condition_operator", "VARCHAR(16) NULL"},
+            {"plugin_mirra_agent_task", "condition_value", "VARCHAR(191) NULL"}
     };
 
     private final DataService data;
@@ -138,6 +149,14 @@ public class DatabaseMemoryRepository implements MemoryRepository {
             try (Statement statement = connection.createStatement()) {
                 for (String sql : SCHEMA) {
                     statement.execute(sql);
+                }
+                /* columns added after the first release of the table */
+                for (String[] column : ADDED_COLUMNS) {
+                    try (ResultSet rs = connection.getMetaData().getColumns(connection.getCatalog(), null, column[0], column[1])) {
+                        if (!rs.next()) {
+                            statement.execute("ALTER TABLE " + column[0] + " ADD COLUMN " + column[1] + " " + column[2]);
+                        }
+                    }
                 }
             }
             return null;

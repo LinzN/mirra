@@ -84,6 +84,7 @@ model for a final answer without tools.
 | `stem_sql`                | `STEM_ADMIN`                                 | Runs an SQL statement on the STEM database (max. 200 rows) |
 | `stem_mqtt_read`          | `STEM_READ`                                  | Listens to MQTT topics for a few seconds            |
 | `create_task`             | registered users                             | Plans a task at a time, on a cron schedule or on an event |
+| `list_event_types`        | `STEM_READ`                                  | STEM events seen so far with example data           |
 | `list_tasks`              | registered users (all users: `STEM_ADMIN`)   | Planned tasks                                       |
 | `cancel_task`             | owner or `STEM_ADMIN`                        | Cancels a planned task                              |
 | `shell_run`               | `SHELL`                                      | Shell command on the STEM server or via SSH         |
@@ -138,9 +139,15 @@ webhook directly if "Webhook base64" is enabled for the instance.
 ## Tasks
 
 A task is an instruction in natural language plus a trigger. When it triggers, Mirra gets the instruction as if
-its owner had just written it, with the owner's permissions, carries it out with her tools and sends the result
-to the owner. Examples: "Schalte heute um 22 Uhr den 3D-Drucker aus", "Wenn der Druck auf dem U1 fertig ist,
-schalte den Drucker aus", "Jeden Morgen um 7 Uhr: schick mir das Wetter".
+its owner had just written it, with the owner's permissions, carries it out with all her tools and sends the result
+to the owner. Anything Mirra can do in a chat can be planned. Examples:
+
+- "Schalte heute um 22 Uhr den 3D-Drucker aus" (time)
+- "Jeden Morgen um 7 Uhr: schick mir das Wetter und die Termine" (cron)
+- "Prüfe jede Stunde die Health-Checks und melde dich nur, wenn etwas fehlschlägt" (cron, silent if all is fine)
+- "Wenn die Außentemperatur unter 3 Grad fällt, schick mir eine Glätte-Warnung" (event with condition)
+- "Wenn ein Druck fertig ist, schalte den Drucker aus" (event)
+- "Wenn ein Backup fehlschlägt, starte es neu und sag mir Bescheid" (information block event)
 
 | Trigger | Parameters                         | Notes                                                    |
 |---------|------------------------------------|----------------------------------------------------------|
@@ -150,11 +157,22 @@ schalte den Drucker aus", "Jeden Morgen um 7 Uhr: schick mir das Wetter".
 
 | Event                                              | Source                                   | Filter                         |
 |----------------------------------------------------|------------------------------------------|--------------------------------|
-| `print_finished`, `print_failed`, `print_cancelled` | Snapmaker and Ankermake printers of home-devices | `device` (part of the name) |
+| `stem_event`                                       | Any event of any STEM plugin, by `event_name` | `device`/`match_value` in the event data, `condition` |
+| `mqtt`                                             | Any MQTT topic                           | `topic`, `match_value` in the payload, `condition` |
+| `information`                                      | Any new STEM information block           | `match_value` in title or text |
+| `print_finished`, `print_failed`, `print_cancelled` | 3D printers of home-devices             | `device` (part of the name)    |
 | `device_on`, `device_off`                          | Switches of home-devices (real changes only) | `device`                    |
 | `door_ring`                                        | Door bells of home-devices               | `device`                       |
-| `information`                                      | Any new STEM information block           | `match_value` in title or text |
-| `mqtt`                                             | Any MQTT topic                           | `topic`, `match_value` in the payload |
+
+`stem_event` uses STEM's catch-all event delivery (STEM `b585c21` or newer): Mirra sees every event of every
+plugin, turns it into JSON (record components or getters, one level of nested objects) and keeps a catalog of
+the events seen with an example, which she reads with `list_event_types` to find the right event and fields.
+The catalog is stored in the STEM data store under `mirra-event-catalog`.
+
+A condition compares a field of the event data or JSON payload (dotted path, e.g.
+`environmentSensor.temperature`) with a value (`<`, `<=`, `>`, `>=`, `==`, `!=`, `contains`; numbers are compared
+as numbers). Tasks with a condition trigger when the condition becomes true, not on every event while it stays
+true. If a task should only report in some cases and none applies, Mirra answers `NO_REPORT` and nothing is sent.
 
 Tasks are stored in `plugin_mirra_agent_task` and armed again after a restart. Time tasks that were due while
 STEM was offline run one minute after the start if they are at most one hour late; older ones are skipped and the
@@ -190,7 +208,7 @@ facts (`memory.legacyImported` is set afterwards).
 
 | Requirement | Version                                                                                       |
 |-------------|-----------------------------------------------------------------------------------------------|
-| STEM        | 1.2.0 or newer with `CommandService.execute` (branch `agent`), database module configured     |
+| STEM        | 1.2.0 or newer with `CommandService.execute` and catch-all events (`master` from b585c21), database module configured |
 | Plugins     | [home-devices](https://github.com/LinzN/home-devices), [weather](https://github.com/LinzN/weather), [gas-station](https://github.com/LinzN/gas-station) |
 | OpenAI      | API key with access to the Responses, Embeddings, Images and Audio API (transcription, speech) |
 | Discord     | Bot token with the **Message Content** intent (optional)                                      |
@@ -278,7 +296,7 @@ All tables are created automatically if they do not exist (MySQL/MariaDB).
 | `plugin_mirra_identity_user_permissions` | `identity_user_id`, `permission` (see [Tools](#tools))                       |
 | `plugin_mirra_memory`                    | `id`, `model`, `identity`, `role`, `content`, `date`, `function_name`, `function_json` |
 | `plugin_mirra_agent_summary`             | `model`, `chat_key`, `summary`, `covered_until`, `updated`                   |
-| `plugin_mirra_agent_task`                | `id`, `owner_source`, `owner_token`, `owner_name`, `instruction`, `trigger_type`, `run_at`, `cron`, `event_type`, `device`, `match_value`, `topic`, `repeating`, `active`, `created`, `last_run`, `run_count` |
+| `plugin_mirra_agent_task`                | `id`, `owner_source`, `owner_token`, `owner_name`, `instruction`, `trigger_type`, `run_at`, `cron`, `event_type`, `device`, `match_value`, `topic`, `repeating`, `active`, `created`, `last_run`, `run_count`, `event_name`, `condition_field`, `condition_operator`, `condition_value` |
 | `plugin_mirra_agent_memory`              | `id`, `owner`, `category`, `content`, `importance`, `embedding`, `embedding_model`, `source`, `created`, `updated`, `last_used`, `use_count` |
 | `plugin_mirra_longterm_memory`           | `id`, `memory_data`, `date` (old memory, only read for the one-time import)  |
 | `plugin_mirra_reminder`                  | `id`, `user_token_id`, `reminder_content`, `reminder_datetime`, `active`, `created` |

@@ -16,7 +16,9 @@ import de.linzn.homeDevices.events.records.DeviceUpdateEvent;
 import de.linzn.homeDevices.events.records.MQTTDoorRingEvent;
 import de.linzn.homeDevices.events.records.MQTTPrintEndEvent;
 import de.linzn.homeDevices.events.records.MQTTSnapmakerPrintEndEvent;
+import de.linzn.stem.modules.eventModule.StemEvent;
 import de.linzn.stem.modules.eventModule.handler.StemEventHandler;
+import de.linzn.stem.modules.eventModule.handler.StemEventPriority;
 import de.linzn.stem.modules.informationModule.InformationBlock;
 import de.linzn.stem.modules.informationModule.events.InformationEvent;
 
@@ -65,5 +67,13 @@ public class TaskEventListener {
         InformationBlock block = event.getInformationBlock();
         String text = block.getName() + " " + block.getDescription();
         this.manager.onEvent("information", null, text, "Information block '" + block.getName() + "': " + block.getDescription());
+    }
+
+    /**
+     * Receives every STEM event (STEM delivers all events to handlers of the type StemEvent).
+     */
+    @StemEventHandler(priority = StemEventPriority.LOW)
+    public void onAnyEvent(StemEvent event) {
+        this.manager.onStemEvent(event);
     }
 }

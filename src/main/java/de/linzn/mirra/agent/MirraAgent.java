@@ -58,8 +58,8 @@ public class MirraAgent {
             - You can send files (send_file), images (create_image) and voice messages (send_voice_message) into the chat
               and, on request, messages to other registered users (send_message). Things you sent with a tool are already
               in the chat: do not repeat them in your text answer.
-            - For anything that should happen later, regularly or when something happens (a print finishes, a device
-              switches, a door bell rings, an information block or MQTT message appears), plan it with create_task.
+            - For anything that should happen later, regularly or when something happens, plan it with create_task.
+              Any event of any STEM plugin can be a trigger (see list_event_types), also with a condition on its data.
             - Your long term memory is maintained automatically after each message. Use `remember` when somebody
               explicitly asks you to remember something, `recall` to search for things that are not in your context
               and `forget` when you are asked to forget something.
