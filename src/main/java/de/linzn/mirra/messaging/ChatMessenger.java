@@ -73,7 +73,12 @@ public class ChatMessenger {
             TokenSource wanted = TokenSource.valueOf(channel.trim().toUpperCase(Locale.ROOT));
             return tokens.stream().filter(token -> token.getSource() == wanted && this.canSend(token)).findFirst();
         }
-        /* WhatsApp first: it is the channel people read on their phone */
+        /* the preferred channel of the profile, then WhatsApp: it is the channel people read on their phone */
+        Optional<UserToken> preferred = identity.field("preferred_channel")
+                .flatMap(name -> tokens.stream().filter(token -> token.getSource().name().equalsIgnoreCase(name) && this.canSend(token)).findFirst());
+        if (preferred.isPresent()) {
+            return preferred;
+        }
         return tokens.stream().filter(token -> token.getSource() == TokenSource.WHATSAPP && this.canSend(token)).findFirst()
                 .or(() -> tokens.stream().filter(this::canSend).findFirst());
     }

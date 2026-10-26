@@ -12,16 +12,18 @@
 
 package de.linzn.mirra.identitySystem;
 
+/**
+ * Anonymous profile for senders that have no stored profile (e.g. when guests are not created automatically).
+ */
 public class IdentityGuest extends IdentityUser {
 
     private volatile String guestName;
 
     public IdentityGuest(UserToken userToken) {
-        super("Guest");
+        super(-1, "Guest", true);
         if (userToken != null) {
             this.assignUserToken(userToken);
         }
-        this.addPermission(AiPermissions.STATUS_STEM);
     }
 
     @Override

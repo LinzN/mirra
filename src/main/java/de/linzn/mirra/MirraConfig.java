@@ -65,6 +65,8 @@ public final class MirraConfig {
     public final int shellTimeoutSeconds;
     public final List<String> shellAllowedHosts;
 
+    public final boolean autoCreateGuests;
+
     public final boolean autoMemory;
     public final int summaryThreshold;
     public final int memoryContextSize;
@@ -113,6 +115,8 @@ public final class MirraConfig {
         this.shellSshPort = clamp(integer(config, "agent.shell.sshPort", 22), 1, 65535);
         this.shellTimeoutSeconds = clamp(integer(config, "agent.shell.timeoutSeconds", 120), 1, 3600);
         this.shellAllowedHosts = stringList(config, "agent.shell.allowedHosts", List.of());
+
+        this.autoCreateGuests = bool(config, "users.autoCreateGuests", true);
 
         this.autoMemory = bool(config, "memory.autoExtract", true);
         this.summaryThreshold = clamp(integer(config, "memory.summaryThreshold", 40), 10, 500);

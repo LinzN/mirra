@@ -35,6 +35,7 @@ import de.linzn.mirra.agent.tools.AssistantTools;
 import de.linzn.mirra.agent.tools.ControlTools;
 import de.linzn.mirra.agent.tools.MessagingTools;
 import de.linzn.mirra.agent.tools.TaskTools;
+import de.linzn.mirra.agent.tools.UserTools;
 import de.linzn.mirra.agent.tasks.TaskEventListener;
 import de.linzn.mirra.agent.tasks.TaskManager;
 import de.linzn.mirra.agent.tasks.TaskRepository;
@@ -44,6 +45,8 @@ import de.linzn.mirra.agent.tools.ToolRegistry;
 import de.linzn.mirra.core.reminder.ReminderEngine;
 import de.linzn.mirra.discord.DiscordManager;
 import de.linzn.mirra.identitySystem.IdentityManager;
+import de.linzn.mirra.identitySystem.LegacyMigration;
+import de.linzn.mirra.identitySystem.UserRepository;
 import de.linzn.mirra.listener.MirraReminderListener;
 import de.linzn.mirra.listener.StemEventListener;
 import de.linzn.mirra.memory.DatabaseMemoryRepository;
@@ -95,6 +98,23 @@ public class MirraPlugin extends STEMPlugin {
         } catch (SQLException e) {
             this.getPluginLogger().error("Could not prepare the database tables of Mirra", e);
         }
+        /* user profiles: create tables and migrate the identities of earlier versions once,
+         * before the long term memory is loaded, because the migration renames memory owners */
+        UserRepository userRepository = new UserRepository(this.getStemApi().data(), this.getPluginLogger());
+        try {
+            userRepository.createSchema();
+            if (!Boolean.TRUE.equals(this.getDefaultConfig().get("users.migrated", false))) {
+                if (userRepository.countUsers() == 0) {
+                    LegacyMigration.Result result = LegacyMigration.run(userRepository, this.getPluginLogger());
+                    this.getPluginLogger().info("Migrated identities to user profiles: " + result);
+                }
+                this.getDefaultConfig().set("users.migrated", true);
+                this.getDefaultConfig().save();
+            }
+        } catch (SQLException e) {
+            this.getPluginLogger().error("Could not prepare or migrate the user profiles", e);
+        }
+        this.identityManager = new IdentityManager(this, userRepository, this.mirraConfig.autoCreateGuests);
 
         OpenAIClient client = new OpenAIClient(this.mirraConfig.openAIBaseUrl, this.mirraConfig.openAIToken, this.mirraConfig.openAITimeoutSeconds);
         LongTermMemory memory = new LongTermMemory(repository, new LongTermMemory.Embedder() {
@@ -124,11 +144,12 @@ public class MirraPlugin extends STEMPlugin {
         tools.registerAll(MessagingTools.create(this));
         tools.registerAll(ControlTools.create(this, this.mirraConfig));
         tools.registerAll(TaskTools.create(this));
+        tools.registerAll(UserTools.create(this));
         this.agent = new MirraAgent(client, this.mirraConfig, tools, repository, memory, keeper, this.getPluginLogger(),
                 task -> this.getStemApi().scheduler().runAsync(task), this.getStemApi().system().getZone(), this.attachmentProcessor);
+        this.agent.setProfiles(this.identityManager);
         this.getPluginLogger().info("Mirra agent ready with " + tools.getTools().size() + " tools, model " + this.mirraConfig.textModel);
 
-        this.identityManager = new IdentityManager(this);
         this.whatsappManager = new WhatsappManager(this);
         this.discordManager = new DiscordManager(this);
         this.reminderEngine = new ReminderEngine(this);

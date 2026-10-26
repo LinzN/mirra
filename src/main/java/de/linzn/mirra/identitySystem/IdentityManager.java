@@ -14,122 +14,316 @@ package de.linzn.mirra.identitySystem;
 
 import de.linzn.stem.modules.pluginModule.STEMPlugin;
 
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.List;
-import java.util.Optional;
-import java.util.Map;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * User profiles of Mirra. Every person is one profile with any number of chat channels (Discord, WhatsApp).
+ * Unknown senders get a guest profile automatically (if enabled), so Mirra remembers them; an administrator can
+ * later link their channels to an existing profile, merge profiles or grant permissions.
+ */
 public class IdentityManager {
 
-    private final STEMPlugin plugin;
-    private final List<IdentityUser> identities;
-    /* tokens of unknown users, so a guest keeps the same token (and chat memory) */
-    private final Map<String, UserToken> guestTokens;
+    /* last seen times are written at most this often per channel */
+    private static final Duration TOUCH_INTERVAL = Duration.ofMinutes(10);
 
-    public IdentityManager(STEMPlugin plugin) {
+    private final STEMPlugin plugin;
+    private final UserRepository repository;
+    private final boolean autoCreateGuests;
+    private final Map<Integer, IdentityUser> users = new ConcurrentHashMap<>();
+    private final Map<String, UserToken> channels = new ConcurrentHashMap<>();
+    /* senders without a profile when guests are not created automatically */
+    private final Map<String, UserToken> anonymous = new ConcurrentHashMap<>();
+    private final Map<Integer, LocalDateTime> touched = new ConcurrentHashMap<>();
+
+    public IdentityManager(STEMPlugin plugin, UserRepository repository, boolean autoCreateGuests) {
         this.plugin = plugin;
-        this.identities = new CopyOnWriteArrayList<>();
-        this.guestTokens = new ConcurrentHashMap<>();
-        this.loadIdentities();
+        this.repository = repository;
+        this.autoCreateGuests = autoCreateGuests;
+        this.reload();
     }
 
-    private void addIdentityUser(IdentityUser identityUser) {
-        this.plugin.getPluginLogger().debug("ADD IdentityUser: " + identityUser.getIdentityName());
-        this.identities.add(identityUser);
+    /**
+     * Load all profiles from the database.
+     */
+    public synchronized void reload() {
+        try {
+            Map<Integer, IdentityUser> loaded = this.repository.loadUsers();
+            this.users.clear();
+            this.channels.clear();
+            this.users.putAll(loaded);
+            for (IdentityUser user : loaded.values()) {
+                for (UserToken token : user.getUserTokens()) {
+                    this.channels.put(key(token.getSource(), token.getName()), token);
+                }
+            }
+            long guests = loaded.values().stream().filter(IdentityUser::isGuest).count();
+            this.plugin.getPluginLogger().info("Loaded " + (loaded.size() - guests) + " user profiles and " + guests + " guest profiles");
+        } catch (SQLException e) {
+            this.plugin.getPluginLogger().error("Unable to load user profiles", e);
+        }
+    }
+
+    public UserRepository getRepository() {
+        return repository;
+    }
+
+    /**
+     * @return all profiles, registered users first
+     */
+    public List<IdentityUser> getIdentities() {
+        List<IdentityUser> list = new ArrayList<>(this.users.values());
+        list.sort(Comparator.comparing(IdentityUser::isGuest).thenComparing(user -> user.getIdentityName().toLowerCase(Locale.ROOT)));
+        return list;
+    }
+
+    /**
+     * @return the stored channel with this id
+     */
+    public Optional<UserToken> findChannel(int channelId) {
+        return this.channels.values().stream().filter(token -> token.getId() == channelId).findFirst();
+    }
+
+    public Optional<IdentityUser> findById(int id) {
+        return Optional.ofNullable(this.users.get(id));
+    }
+
+    /**
+     * Find a profile by its name, nickname or full name, ignoring case.
+     */
+    public Optional<IdentityUser> findIdentity(String name) {
+        if (name == null || name.isBlank()) {
+            return Optional.empty();
+        }
+        String wanted = name.trim();
+        Optional<IdentityUser> exact = this.users.values().stream().filter(user -> user.getIdentityName().equalsIgnoreCase(wanted)).findFirst();
+        if (exact.isPresent()) {
+            return exact;
+        }
+        List<IdentityUser> matches = this.users.values().stream()
+                .filter(user -> user.field("nickname").map(wanted::equalsIgnoreCase).orElse(false)
+                        || user.field("full_name").map(wanted::equalsIgnoreCase).orElse(false))
+                .toList();
+        return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
     }
 
     public IdentityUser getIdentityUserByToken(UserToken userToken) {
-        if (userToken != null) {
-            for (IdentityUser identityUser : this.identities) {
-                if (identityUser.hasUserToken(userToken)) {
-                    return identityUser;
-                }
+        if (userToken != null && userToken.getUserId() >= 0) {
+            IdentityUser user = this.users.get(userToken.getUserId());
+            if (user != null) {
+                return user;
             }
         }
         return new IdentityGuest(userToken);
     }
 
     /**
-     * @return all registered identities
+     * @see #resolve(String, TokenSource, String)
      */
-    public List<IdentityUser> getIdentities() {
-        return List.copyOf(this.identities);
+    public UserToken getOrCreateUserToken(String address, TokenSource source) {
+        return this.resolve(address, source, null);
     }
 
     /**
-     * @return the identity with this name, ignoring case
+     * Find the channel of a sender. Unknown senders get a guest profile with this channel if guests are created
+     * automatically, otherwise an anonymous token.
+     *
+     * @param displayName name shown on the channel, used for the guest profile and kept up to date
      */
-    public Optional<IdentityUser> findIdentity(String name) {
-        if (name == null) {
-            return Optional.empty();
-        }
-        String wanted = name.trim();
-        return this.identities.stream().filter(identity -> identity.getIdentityName().equalsIgnoreCase(wanted)).findFirst();
-    }
-
-    private void loadIdentities() {
-        try {
-            this.plugin.getStemApi().data().withConnection(conn -> {
-                try (PreparedStatement st = conn.prepareStatement("SELECT * FROM plugin_mirra_identity_user");
-                     ResultSet rs = st.executeQuery()) {
-                    while (rs.next()) {
-                        int id = rs.getInt("id");
-                        IdentityUser identityUser = new IdentityUser(rs.getString("identity_name"));
-                        try (PreparedStatement tokenSt = conn.prepareStatement("SELECT * FROM plugin_mirra_identity_user_tokens WHERE identity_user_id = ?")) {
-                            tokenSt.setInt(1, id);
-                            try (ResultSet tokenRs = tokenSt.executeQuery()) {
-                                while (tokenRs.next()) {
-                                    String tokenSource = tokenRs.getString("token_source");
-                                    try {
-                                        identityUser.assignUserToken(new UserToken(tokenRs.getInt("id"), tokenRs.getString("identity_token"), TokenSource.valueOf(tokenSource)));
-                                    } catch (IllegalArgumentException e) {
-                                        this.plugin.getPluginLogger().warning("Unknown token source " + tokenSource + " for identity " + identityUser.getIdentityName());
-                                    }
-                                }
-                            }
-                        }
-                        try (PreparedStatement permissionSt = conn.prepareStatement("SELECT * FROM plugin_mirra_identity_user_permissions WHERE identity_user_id = ?")) {
-                            permissionSt.setInt(1, id);
-                            try (ResultSet permissionRs = permissionSt.executeQuery()) {
-                                while (permissionRs.next()) {
-                                    String permission = permissionRs.getString("permission");
-                                    try {
-                                        identityUser.addPermission(AiPermissions.valueOf(permission));
-                                    } catch (IllegalArgumentException e) {
-                                        this.plugin.getPluginLogger().warning("Unknown permission " + permission + " for identity " + identityUser.getIdentityName());
-                                    }
-                                }
-                            }
-                        }
-                        this.addIdentityUser(identityUser);
-                    }
-                }
-                return null;
-            });
-        } catch (SQLException e) {
-            this.plugin.getPluginLogger().error("Unable to load identities", e);
-        }
-    }
-
-    /**
-     * @return the token of a known identity, or a guest token (id -1, not stored in the database)
-     */
-    public UserToken getOrCreateUserToken(String name, TokenSource source) {
+    public UserToken resolve(String address, TokenSource source, String displayName) {
         if (source == TokenSource.INTERNAL) {
-            return new UserToken(-1, name, source);
+            return UserToken.internal(address);
         }
-        for (IdentityUser identityUser : this.identities) {
-            for (UserToken userToken : identityUser.getUserTokens()) {
-                if (userToken.getName().equalsIgnoreCase(name) && userToken.getSource() == source) {
-                    return userToken;
-                }
+        UserToken token = this.channels.get(key(source, address));
+        if (token == null && this.autoCreateGuests) {
+            token = this.createGuest(address, source, displayName);
+        }
+        if (token == null) {
+            return this.anonymous.computeIfAbsent(key(source, address), key -> new UserToken(-1, address, source));
+        }
+        this.touch(token, displayName);
+        return token;
+    }
+
+    private synchronized UserToken createGuest(String address, TokenSource source, String displayName) {
+        UserToken existing = this.channels.get(key(source, address));
+        if (existing != null) {
+            return existing;
+        }
+        try {
+            String name = this.uniqueName(displayName == null || displayName.isBlank() ? "Guest" : displayName.trim());
+            int userId = this.repository.insertUser(name, true);
+            int channelId = this.repository.insertChannel(userId, source, address, displayName);
+            IdentityUser user = new IdentityUser(userId, name, true);
+            user.setCreated(LocalDateTime.now());
+            UserToken token = new UserToken(channelId, address, source, userId, displayName);
+            user.assignUserToken(token);
+            this.users.put(userId, user);
+            this.channels.put(key(source, address), token);
+            this.plugin.getPluginLogger().info("New guest profile '" + name + "' for " + token);
+            return token;
+        } catch (SQLException e) {
+            this.plugin.getPluginLogger().error("Could not create guest profile for " + source + ":" + address, e);
+            return null;
+        }
+    }
+
+    private void touch(UserToken token, String displayName) {
+        if (token.getId() < 0 || token.getUserId() < 0) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        boolean nameChanged = displayName != null && !displayName.isBlank() && !displayName.equals(token.getDisplayName());
+        LocalDateTime last = this.touched.get(token.getId());
+        if (!nameChanged && last != null && Duration.between(last, now).compareTo(TOUCH_INTERVAL) < 0) {
+            return;
+        }
+        this.touched.put(token.getId(), now);
+        if (nameChanged) {
+            token.setDisplayName(displayName);
+        }
+        IdentityUser user = this.users.get(token.getUserId());
+        if (user != null) {
+            user.setLastSeen(now);
+        }
+        this.plugin.getStemApi().scheduler().runAsync(() -> {
+            try {
+                this.repository.touch(token.getUserId(), token.getId(), nameChanged ? displayName : null);
+            } catch (SQLException e) {
+                this.plugin.getPluginLogger().debug("Could not update last seen: " + e.getMessage());
             }
+        });
+    }
+
+    /* ---------- administration ---------- */
+
+    public synchronized IdentityUser createUser(String name) throws SQLException {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("A user needs a name");
         }
-        //todo create objects in database and assign guest token
-        return this.guestTokens.computeIfAbsent(source.name() + ":" + name.toLowerCase(), key -> new UserToken(-1, name, source));
+        if (this.users.values().stream().anyMatch(user -> user.getIdentityName().equalsIgnoreCase(name.trim()))) {
+            throw new IllegalArgumentException("A user named '" + name + "' already exists");
+        }
+        int id = this.repository.insertUser(name.trim(), false);
+        IdentityUser user = new IdentityUser(id, name.trim(), false);
+        user.setCreated(LocalDateTime.now());
+        this.users.put(id, user);
+        return user;
+    }
+
+    /**
+     * Assign a channel to a user. If the channel belongs to a guest profile with no other channels, the guest
+     * profile is merged into the user (so its memories are kept); otherwise the channel is moved.
+     */
+    public synchronized void linkChannel(IdentityUser user, TokenSource source, String address) throws SQLException {
+        UserToken existing = this.channels.get(key(source, address));
+        if (existing == null) {
+            int channelId = this.repository.insertChannel(user.getId(), source, address, null);
+            UserToken token = new UserToken(channelId, address, source, user.getId(), null);
+            user.assignUserToken(token);
+            this.channels.put(key(source, address), token);
+            return;
+        }
+        if (existing.getUserId() == user.getId()) {
+            return;
+        }
+        IdentityUser owner = this.users.get(existing.getUserId());
+        if (owner != null && owner.isGuest() && owner.getUserTokens().size() == 1) {
+            this.mergeUsers(owner, user);
+            return;
+        }
+        this.repository.moveChannel(existing.getId(), user.getId());
+        if (owner != null) {
+            owner.removeUserToken(existing);
+        }
+        existing.setUserId(user.getId());
+        user.assignUserToken(existing);
+    }
+
+    public synchronized void unlinkChannel(IdentityUser user, UserToken token) throws SQLException {
+        if (!user.hasUserToken(token)) {
+            throw new IllegalArgumentException("The channel does not belong to " + user.getIdentityName());
+        }
+        this.repository.deleteChannel(token.getId());
+        user.removeUserToken(token);
+        this.channels.remove(key(token.getSource(), token.getName()));
+    }
+
+    /**
+     * Move channels, permissions, attributes, reminders and memories of {@code from} to {@code into} and delete {@code from}.
+     */
+    public synchronized void mergeUsers(IdentityUser from, IdentityUser into) throws SQLException {
+        if (from.getId() == into.getId()) {
+            throw new IllegalArgumentException("Cannot merge a user with itself");
+        }
+        this.repository.mergeUsers(from.getId(), into.getId());
+        this.reload();
+    }
+
+    public void setPermission(IdentityUser user, AiPermissions permission, boolean granted) throws SQLException {
+        this.repository.setPermission(user.getId(), permission, granted);
+        if (granted) {
+            user.addPermission(permission);
+        } else {
+            user.removePermission(permission);
+        }
+    }
+
+    public void setGuest(IdentityUser user, boolean guest) throws SQLException {
+        this.repository.setGuest(user.getId(), guest);
+        user.setGuest(guest);
+    }
+
+    /**
+     * Set a profile field (see {@link IdentityUser#PROFILE_FIELDS}) or, for any other key, an attribute.
+     *
+     * @param value  null or empty to remove
+     * @param source who set it: user, admin or auto
+     */
+    public void setProfileValue(IdentityUser user, String key, String value, String source) throws SQLException {
+        String normalized = normalizeKey(key);
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("Empty profile key");
+        }
+        String clean = value == null ? null : value.trim();
+        if (clean != null && clean.length() > 2000) {
+            clean = clean.substring(0, 2000);
+        }
+        if (IdentityUser.PROFILE_FIELDS.contains(normalized)) {
+            if (normalized.equals("preferred_channel") && clean != null && !clean.isBlank()) {
+                TokenSource.valueOf(clean.toUpperCase(Locale.ROOT));
+                clean = clean.toLowerCase(Locale.ROOT);
+            }
+            this.repository.setField(user.getId(), normalized, clean);
+            user.setField(normalized, clean);
+        } else {
+            this.repository.setAttribute(user.getId(), normalized, clean, source);
+            user.setAttribute(normalized, clean);
+        }
+    }
+
+    public static String normalizeKey(String key) {
+        return key == null ? "" : key.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_]+", "_").replaceAll("^_+|_+$", "");
+    }
+
+    private String uniqueName(String base) {
+        String name = base.length() > 60 ? base.substring(0, 60) : base;
+        String candidate = name;
+        int counter = 2;
+        while (this.isTaken(candidate)) {
+            candidate = name + " (" + counter++ + ")";
+        }
+        return candidate;
+    }
+
+    private boolean isTaken(String name) {
+        return this.users.values().stream().anyMatch(user -> user.getIdentityName().equalsIgnoreCase(name));
+    }
+
+    private static String key(TokenSource source, String address) {
+        return source.name() + ":" + address.toLowerCase(Locale.ROOT);
     }
 }

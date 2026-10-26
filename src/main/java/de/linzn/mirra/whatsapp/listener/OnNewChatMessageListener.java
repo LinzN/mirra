@@ -83,7 +83,7 @@ public class OnNewChatMessageListener {
                 this.plugin.getPluginLogger().debug("Unable to set WhatsApp presence: " + e.getMessage());
             }
         });
-        UserToken userToken = this.plugin.getIdentityManager().getOrCreateUserToken(identifier.toString(), TokenSource.WHATSAPP);
+        UserToken userToken = this.plugin.getIdentityManager().resolve(identifier.toString(), TokenSource.WHATSAPP, sender);
         ChatContext chat = this.plugin.chatContext(userToken, sender == null || sender.isBlank() ? "WhatsApp" : sender);
         List<Attachment> attachments = textMessage.hasMedia() ? List.of(this.download(textMessage)) : List.of();
         String answer = this.plugin.getAgent().chat(chat, content, attachments);

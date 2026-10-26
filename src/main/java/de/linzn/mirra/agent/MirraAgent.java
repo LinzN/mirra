@@ -35,6 +35,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -80,6 +81,8 @@ public class MirraAgent {
     private final ZoneId zone;
     private final Map<String, ReentrantLock> chatLocks = new ConcurrentHashMap<>();
     private final AttachmentProcessor attachments;
+    /* user profiles for automatic profile updates, may be null (tests) */
+    private volatile de.linzn.mirra.identitySystem.IdentityManager profiles;
     /* files of the last minutes per chat, sent again so follow-up questions about them work */
     private final Map<String, Deque<RecentFile>> recentFiles = new ConcurrentHashMap<>();
 
@@ -104,6 +107,10 @@ public class MirraAgent {
         this.logger = logger;
         this.background = background;
         this.zone = zone;
+    }
+
+    public void setProfiles(de.linzn.mirra.identitySystem.IdentityManager profiles) {
+        this.profiles = profiles;
     }
 
     public ToolRegistry getTools() {
@@ -313,13 +320,33 @@ public class MirraAgent {
             builder.append("- You are talking to ").append(chat.name()).append(" (registered user, chat name ").append(chat.displayName()).append(").\n");
             builder.append("- Permissions: ").append(permissions(chat)).append('\n');
         }
-        builder.append('\n').append(this.memorySection(chat, message));
+        builder.append('\n').append(profileSection(chat)).append(this.memorySection(chat, message));
         MemoryRepository.Summary summary = this.repository.loadSummary(this.config.modelName, chat.chatKey());
         if (!summary.text().isBlank()) {
             builder.append("## Earlier in this chat\n").append(summary.text().trim()).append("\n\n");
         }
         builder.append(RULES);
         return builder.toString();
+    }
+
+    /**
+     * The stored profile of the person, so Mirra knows names, birthday, language and channels without asking.
+     */
+    static String profileSection(ChatContext chat) {
+        if (chat.isInternal() || chat.identityUser() == null || chat.identityUser().getId() < 0) {
+            return "";
+        }
+        de.linzn.mirra.identitySystem.IdentityUser user = chat.identityUser();
+        StringBuilder section = new StringBuilder("## Profile of ").append(user.getIdentityName()).append(user.isGuest() ? " (guest)" : "").append('\n');
+        for (String field : de.linzn.mirra.identitySystem.IdentityUser.PROFILE_FIELDS) {
+            user.field(field).ifPresent(value -> section.append("- ").append(field).append(": ").append(value).append('\n'));
+        }
+        user.getAttributes().forEach((key, value) -> section.append("- ").append(key).append(": ").append(value).append('\n'));
+        List<String> channels = new ArrayList<>();
+        user.getUserTokens().forEach(token -> channels.add(token.getSource().name().toLowerCase(Locale.ROOT)));
+        section.append("- reachable via: ").append(channels.isEmpty() ? "-" : String.join(", ", channels)).append('\n');
+        section.append("Keep the profile up to date with update_user_profile when the person tells you lasting personal data.\n\n");
+        return section.toString();
     }
 
     private String memorySection(ChatContext chat, String message) {
@@ -373,7 +400,26 @@ public class MirraAgent {
         }
         this.background.accept(() -> {
             if (this.config.autoMemory) {
-                this.keeper.extract(chat.memoryOwner(), chat.name(), chat.has(AiPermissions.LONG_TERM_MEMORY_WRITE), message, answer);
+                Map<String, String> profile = null;
+                BiConsumer<String, String> profileUpdate = null;
+                if (this.profiles != null && chat.identityUser() != null && chat.identityUser().getId() >= 0) {
+                    de.linzn.mirra.identitySystem.IdentityUser user = chat.identityUser();
+                    profile = new LinkedHashMap<>();
+                    for (String field : de.linzn.mirra.identitySystem.IdentityUser.PROFILE_FIELDS) {
+                        Map<String, String> target = profile;
+                        user.field(field).ifPresent(value -> target.put(field, value));
+                    }
+                    profile.putAll(user.getAttributes());
+                    profileUpdate = (key, value) -> {
+                        try {
+                            this.profiles.setProfileValue(user, key, value, "auto");
+                        } catch (java.sql.SQLException e) {
+                            throw new IllegalStateException(e.getMessage(), e);
+                        }
+                    };
+                }
+                this.keeper.extract(chat.memoryOwner(), chat.name(), chat.has(AiPermissions.LONG_TERM_MEMORY_WRITE), message, answer,
+                        profile, profileUpdate);
             }
             this.keeper.summarizeIfNeeded(chat.chatKey());
         });

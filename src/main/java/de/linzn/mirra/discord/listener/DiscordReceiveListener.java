@@ -74,7 +74,7 @@ public class DiscordReceiveListener extends ListenerAdapter {
 
     private void answer(User user, String content, List<Message.Attachment> files) {
         this.plugin.getPluginLogger().info("Discord message from " + user.getName() + (files.isEmpty() ? "" : " with " + files.size() + " file(s)"));
-        UserToken userToken = this.plugin.getIdentityManager().getOrCreateUserToken(user.getId(), TokenSource.DISCORD);
+        UserToken userToken = this.plugin.getIdentityManager().resolve(user.getId(), TokenSource.DISCORD, user.getName());
         ChatContext chat = this.plugin.chatContext(userToken, user.getName());
         List<Attachment> attachments = this.download(files);
         String answer = this.plugin.getAgent().chat(chat, content, attachments);

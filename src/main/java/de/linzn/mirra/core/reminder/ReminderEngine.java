@@ -15,14 +15,16 @@ package de.linzn.mirra.core.reminder;
 import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.events.MirraReminderEvent;
 import de.linzn.mirra.identitySystem.IdentityUser;
-import de.linzn.mirra.identitySystem.TokenSource;
+import de.linzn.mirra.identitySystem.UserRepository;
 import de.linzn.mirra.identitySystem.UserToken;
 
-import java.sql.*;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -40,39 +42,21 @@ public class ReminderEngine implements Runnable {
     }
 
     private void loadMirraReminders() {
+        UserRepository repository = this.plugin.getIdentityManager().getRepository();
+        int count = 0;
         try {
-            int loaded = this.plugin.getStemApi().data().withConnection(conn -> {
-                int count = 0;
-                String query = "SELECT r.id, r.reminder_content, r.reminder_datetime, t.identity_token, t.token_source"
-                        + " FROM plugin_mirra_reminder r LEFT JOIN plugin_mirra_identity_user_tokens t ON t.id = r.user_token_id"
-                        + " WHERE r.active = 1";
-                try (PreparedStatement st = conn.prepareStatement(query); ResultSet rs = st.executeQuery()) {
-                    while (rs.next()) {
-                        int reminderID = rs.getInt("id");
-                        String reminderContent = rs.getString("reminder_content");
-                        Date reminderDatetime = rs.getTimestamp("reminder_datetime");
-                        String identityToken = rs.getString("identity_token");
-                        String tokenSource = rs.getString("token_source");
-                        UserToken userToken = null;
-                        if (identityToken != null && tokenSource != null) {
-                            try {
-                                userToken = this.plugin.getIdentityManager().getOrCreateUserToken(identityToken, TokenSource.valueOf(tokenSource));
-                            } catch (IllegalArgumentException e) {
-                                this.plugin.getPluginLogger().warning("Unknown token source " + tokenSource + " for reminder " + reminderID);
-                            }
-                        }
-                        if (userToken == null || reminderDatetime == null) {
-                            this.plugin.getPluginLogger().warning("Skip reminder " + reminderID + ", user token or date not found");
-                            continue;
-                        }
-                        IdentityUser identityUser = this.plugin.getIdentityManager().getIdentityUserByToken(userToken);
-                        this.activeReminderQueue.add(new MirraReminder(reminderID, identityUser, userToken, reminderContent, reminderDatetime));
-                        count++;
-                    }
+            for (UserRepository.StoredReminder stored : repository.loadActiveReminders()) {
+                Optional<UserToken> token = this.plugin.getIdentityManager().findChannel(stored.channelId());
+                if (token.isEmpty()) {
+                    this.plugin.getPluginLogger().warning("Skip reminder " + stored.id() + ", channel " + stored.channelId() + " not found");
+                    continue;
                 }
-                return count;
-            });
-            this.plugin.getPluginLogger().info("Loaded " + loaded + " active reminders");
+                IdentityUser identityUser = this.plugin.getIdentityManager().getIdentityUserByToken(token.get());
+                Date date = Date.from(stored.remindAt().atZone(this.plugin.getStemApi().system().getZone()).toInstant());
+                this.activeReminderQueue.add(new MirraReminder(stored.id(), identityUser, token.get(), stored.content(), date));
+                count++;
+            }
+            this.plugin.getPluginLogger().info("Loaded " + count + " active reminders");
         } catch (SQLException e) {
             this.plugin.getPluginLogger().error("Unable to load reminders", e);
         }
@@ -81,21 +65,8 @@ public class ReminderEngine implements Runnable {
     public MirraReminder createMirraReminder(IdentityUser identityUser, UserToken userToken, String reminderContent, Date reminderDatetime) {
         int reminderID = -1;
         try {
-            reminderID = this.plugin.getStemApi().data().withConnection(conn -> {
-                String query = "INSERT INTO plugin_mirra_reminder (user_token_id, reminder_content, reminder_datetime, active, created)"
-                        + " VALUES (?, ?, ?, ?, ?)";
-                try (PreparedStatement preparedStmt = conn.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
-                    preparedStmt.setInt(1, userToken.getId());
-                    preparedStmt.setString(2, reminderContent);
-                    preparedStmt.setTimestamp(3, new Timestamp(reminderDatetime.getTime()));
-                    preparedStmt.setInt(4, 1);
-                    preparedStmt.setTimestamp(5, new Timestamp(System.currentTimeMillis()));
-                    preparedStmt.executeUpdate();
-                    try (ResultSet generatedKeyResult = preparedStmt.getGeneratedKeys()) {
-                        return generatedKeyResult.next() ? generatedKeyResult.getInt(1) : -1;
-                    }
-                }
-            });
+            reminderID = this.plugin.getIdentityManager().getRepository().insertReminder(identityUser.getId(), userToken.getId(), reminderContent,
+                    LocalDateTime.ofInstant(reminderDatetime.toInstant(), this.plugin.getStemApi().system().getZone()));
         } catch (SQLException e) {
             this.plugin.getPluginLogger().error("Unable to store reminder", e);
         }
@@ -110,13 +81,7 @@ public class ReminderEngine implements Runnable {
             return;
         }
         try {
-            this.plugin.getStemApi().data().withConnection(conn -> {
-                try (PreparedStatement preparedStmt = conn.prepareStatement("UPDATE plugin_mirra_reminder SET active = ? WHERE id = ?")) {
-                    preparedStmt.setInt(1, 0);
-                    preparedStmt.setInt(2, mirraReminder.getId());
-                    return preparedStmt.executeUpdate();
-                }
-            });
+            this.plugin.getIdentityManager().getRepository().deactivateReminder(mirraReminder.getId());
         } catch (SQLException e) {
             this.plugin.getPluginLogger().error("Unable to disable reminder " + mirraReminder.getId(), e);
         }

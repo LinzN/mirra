@@ -13,7 +13,6 @@
 package de.linzn.mirra.agent;
 
 import de.linzn.mirra.identitySystem.AiPermissions;
-import de.linzn.mirra.identitySystem.IdentityGuest;
 import de.linzn.mirra.identitySystem.IdentityUser;
 import de.linzn.mirra.identitySystem.TokenSource;
 import de.linzn.mirra.identitySystem.UserToken;
@@ -44,8 +43,8 @@ public record ChatContext(UserToken userToken, IdentityUser identityUser, String
     }
 
     public static String memoryOwner(UserToken userToken, IdentityUser identityUser) {
-        if (identityUser != null && !(identityUser instanceof IdentityGuest)) {
-            return "identity:" + identityUser.getIdentityName().toLowerCase(Locale.ROOT);
+        if (identityUser != null && identityUser.getId() >= 0) {
+            return "user:" + identityUser.getId();
         }
         return "token:" + userToken.getSource().name().toLowerCase(Locale.ROOT) + ":" + userToken.getName();
     }
@@ -55,7 +54,7 @@ public record ChatContext(UserToken userToken, IdentityUser identityUser, String
     }
 
     public boolean isGuest() {
-        return this.identityUser instanceof IdentityGuest;
+        return this.identityUser == null || this.identityUser.isGuest();
     }
 
     public boolean isInternal() {

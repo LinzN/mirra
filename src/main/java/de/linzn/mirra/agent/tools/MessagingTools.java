@@ -51,18 +51,6 @@ public final class MessagingTools {
         List<AgentTool> tools = new ArrayList<>();
         HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).followRedirects(HttpClient.Redirect.NORMAL).build();
 
-        tools.add(new SimpleTool("list_users",
-                "List the registered users Mirra can send messages to, with their chat channels.",
-                Schema.empty(), anyOf(STEM_READ), (chat, args) -> {
-            JSONArray users = new JSONArray();
-            for (IdentityUser identity : plugin.getIdentityManager().getIdentities()) {
-                JSONArray channels = new JSONArray();
-                identity.getUserTokens().forEach(token -> channels.put(token.getSource().name().toLowerCase()));
-                users.put(new JSONObject().put("name", identity.getIdentityName()).put("channels", channels));
-            }
-            return new JSONObject().put("users", users);
-        }));
-
         tools.add(new SimpleTool("send_message",
                 "Send a text message to another registered user on Discord or WhatsApp. Only on explicit request of the person "
                         + "you talk to. Write the message so the receiver understands who it is from.",

@@ -41,33 +41,6 @@ public class DatabaseMemoryRepository implements MemoryRepository {
               INDEX idx_mirra_memory_chat (model, identity)
             ) DEFAULT CHARSET=utf8mb4""",
             """
-            CREATE TABLE IF NOT EXISTS plugin_mirra_identity_user (
-              id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-              identity_name VARCHAR(191) NOT NULL
-            ) DEFAULT CHARSET=utf8mb4""",
-            """
-            CREATE TABLE IF NOT EXISTS plugin_mirra_identity_user_tokens (
-              id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-              identity_user_id INT NOT NULL,
-              identity_token VARCHAR(191) NOT NULL,
-              token_source VARCHAR(32) NOT NULL
-            ) DEFAULT CHARSET=utf8mb4""",
-            """
-            CREATE TABLE IF NOT EXISTS plugin_mirra_identity_user_permissions (
-              id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-              identity_user_id INT NOT NULL,
-              permission VARCHAR(64) NOT NULL
-            ) DEFAULT CHARSET=utf8mb4""",
-            """
-            CREATE TABLE IF NOT EXISTS plugin_mirra_reminder (
-              id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-              user_token_id INT NOT NULL,
-              reminder_content TEXT NOT NULL,
-              reminder_datetime DATETIME NOT NULL,
-              active TINYINT NOT NULL DEFAULT 1,
-              created DATETIME NOT NULL
-            ) DEFAULT CHARSET=utf8mb4""",
-            """
             CREATE TABLE IF NOT EXISTS plugin_mirra_longterm_memory (
               id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
               memory_data TEXT NOT NULL,

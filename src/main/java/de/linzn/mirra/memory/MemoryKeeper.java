@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 
 /**
  * Keeps the memory of Mirra up to date after every conversation turn:
@@ -50,6 +51,12 @@ public class MemoryKeeper {
             - Use scope "global" only for facts about the household or everybody, otherwise "user".
             - Importance: 5 essential identity facts, 4 important preferences/relations, 3 normal, 1-2 minor.
             - Return an empty list if there is nothing worth remembering. That is the normal case.
+
+            Profile: if the person states lasting data about themselves that belongs in their user profile, also return it
+            in "profile" (key, value). Keys: full_name, nickname, birthday (YYYY-MM-DD, or --MM-DD without year), language
+            (e.g. de), timezone, location (home city), preferred_channel (discord or whatsapp), or a short snake_case key
+            for other personal data such as email, phone, address, employer, partner, children, pets, car. Only data the
+            person said about themselves, only if it differs from the current profile. Usually the list is empty.
             """;
 
     private static final String SUMMARY_PROMPT = """
@@ -98,6 +105,17 @@ public class MemoryKeeper {
      * @return number of changed memories
      */
     public int extract(String owner, String personName, boolean allowGlobal, String userMessage, String answer) {
+        return this.extract(owner, personName, allowGlobal, userMessage, answer, null, null);
+    }
+
+    /**
+     * Extract memories and profile data from one exchange.
+     *
+     * @param currentProfile profile of the person (field and attribute values), null if the person has no profile
+     * @param profileUpdate  receives key and value of profile data to store, null if the person has no profile
+     */
+    public int extract(String owner, String personName, boolean allowGlobal, String userMessage, String answer,
+                       Map<String, String> currentProfile, BiConsumer<String, String> profileUpdate) {
         ReentrantLock lock = this.locks.computeIfAbsent(owner, key -> new ReentrantLock());
         lock.lock();
         try {
@@ -115,6 +133,7 @@ public class MemoryKeeper {
                         .put("category", entry.category()).put("content", entry.content()));
             }
             String input = "Today: " + LocalDate.now() + "\nPerson: " + personName
+                    + (currentProfile == null ? "" : "\nCurrent profile: " + new JSONObject(currentProfile))
                     + "\n\nKnown related memories:\n" + known.toString(2)
                     + "\n\nLatest exchange:\n" + exchange;
 
@@ -126,7 +145,24 @@ public class MemoryKeeper {
                     .put("text", new JSONObject().put("format", operationsFormat()));
             AgentResponse response = this.client.createResponse(request);
             JSONObject result = new JSONObject(response.text());
-            return this.apply(result.optJSONArray("operations"), owner, allowGlobal, knownIds);
+            int changed = this.apply(result.optJSONArray("operations"), owner, allowGlobal, knownIds);
+            JSONArray profile = result.optJSONArray("profile");
+            if (profile != null && profileUpdate != null) {
+                for (int i = 0; i < profile.length(); i++) {
+                    JSONObject entry = profile.optJSONObject(i);
+                    if (entry == null || entry.optString("key").isBlank() || entry.isNull("value")) {
+                        continue;
+                    }
+                    try {
+                        profileUpdate.accept(entry.getString("key"), entry.getString("value"));
+                        this.logger.debug("Profile of " + personName + ": " + entry.getString("key") + " = " + entry.getString("value"));
+                        changed++;
+                    } catch (RuntimeException e) {
+                        this.logger.warning("Could not store profile data " + entry + ": " + e.getMessage());
+                    }
+                }
+            }
+            return changed;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return 0;
@@ -256,10 +292,19 @@ public class MemoryKeeper {
                         .put("importance", new JSONObject().put("type", "integer")))
                 .put("required", new JSONArray().put("action").put("id").put("scope").put("category").put("content").put("importance"))
                 .put("additionalProperties", false);
+        JSONObject profileEntry = new JSONObject()
+                .put("type", "object")
+                .put("properties", new JSONObject()
+                        .put("key", new JSONObject().put("type", "string"))
+                        .put("value", new JSONObject().put("type", new JSONArray().put("string").put("null"))))
+                .put("required", new JSONArray().put("key").put("value"))
+                .put("additionalProperties", false);
         JSONObject schema = new JSONObject()
                 .put("type", "object")
-                .put("properties", new JSONObject().put("operations", new JSONObject().put("type", "array").put("items", operation)))
-                .put("required", new JSONArray().put("operations"))
+                .put("properties", new JSONObject()
+                        .put("operations", new JSONObject().put("type", "array").put("items", operation))
+                        .put("profile", new JSONObject().put("type", "array").put("items", profileEntry)))
+                .put("required", new JSONArray().put("operations").put("profile"))
                 .put("additionalProperties", false);
         return new JSONObject().put("type", "json_schema").put("name", "memory_operations").put("schema", schema).put("strict", true);
     }
