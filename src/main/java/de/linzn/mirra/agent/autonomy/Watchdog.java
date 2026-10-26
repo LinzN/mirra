@@ -199,7 +199,7 @@ public class Watchdog {
                 .append("If everything is harmless or already resolved, answer exactly ").append(TaskManager.NO_REPORT).append('.');
         this.plugin.getPluginLogger().info("Watchdog: handling " + problems.size() + " problem(s)");
         ChatContext chat = this.plugin.chatContext(token.get(), name);
-        String answer = this.plugin.getAgent().chat(chat, message.toString());
+        String answer = this.plugin.getAgent().chatAutomatic(chat, message.toString());
         if (answer == null || answer.trim().toUpperCase(Locale.ROOT).startsWith(TaskManager.NO_REPORT)) {
             this.plugin.getPluginLogger().info("Watchdog: nothing to report");
             return;

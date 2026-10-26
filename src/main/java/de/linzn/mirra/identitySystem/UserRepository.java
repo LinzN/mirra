@@ -405,6 +405,56 @@ public class UserRepository {
         });
     }
 
+    /**
+     * Delete a user with everything that belongs to it: channels, permissions, attributes, reminders, long term
+     * memories, planned tasks and the chat history and summaries of its channels.
+     *
+     * @param addresses addresses of the user's channels (chat history keys)
+     */
+    public void deleteUser(int userId, List<String> addresses) throws SQLException {
+        this.data.withConnection(connection -> {
+            boolean autoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try {
+                String[] byUser = {
+                        "DELETE FROM plugin_mirra_agent_user_permission WHERE user_id = ?",
+                        "DELETE FROM plugin_mirra_agent_user_attribute WHERE user_id = ?",
+                        "DELETE FROM plugin_mirra_agent_reminder WHERE user_id = ?",
+                        "DELETE FROM plugin_mirra_agent_user_channel WHERE user_id = ?",
+                        "DELETE FROM plugin_mirra_agent_user WHERE id = ?"
+                };
+                try (PreparedStatement statement = connection.prepareStatement("DELETE FROM plugin_mirra_agent_memory WHERE owner = ?")) {
+                    statement.setString(1, "user:" + userId);
+                    statement.executeUpdate();
+                }
+                for (String address : addresses) {
+                    for (String sql : new String[]{
+                            "DELETE FROM plugin_mirra_memory WHERE identity = ?",
+                            "DELETE FROM plugin_mirra_agent_summary WHERE chat_key = ?",
+                            "UPDATE plugin_mirra_agent_task SET active = 0 WHERE owner_token = ?"}) {
+                        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                            statement.setString(1, address);
+                            statement.executeUpdate();
+                        }
+                    }
+                }
+                for (String sql : byUser) {
+                    try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                        statement.setInt(1, userId);
+                        statement.executeUpdate();
+                    }
+                }
+                connection.commit();
+            } catch (SQLException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(autoCommit);
+            }
+            return null;
+        });
+    }
+
     /* reminders */
 
     public record StoredReminder(int id, int userId, int channelId, String content, LocalDateTime remindAt) {

@@ -357,7 +357,7 @@ public class TaskManager {
                 + task.ownerName() + " already confirmed this task: carry it out now with your tools without asking back, "
                 + "then tell " + task.ownerName() + " in one or two short sentences what you did. "
                 + "If the task says to report only in certain cases and none of them applies, answer exactly " + NO_REPORT + ".";
-        String answer = this.plugin.getAgent().chat(chat, message);
+        String answer = this.plugin.getAgent().chatAutomatic(chat, message);
         if (answer != null && answer.trim().toUpperCase(Locale.ROOT).startsWith(NO_REPORT)) {
             this.plugin.getPluginLogger().debug("Task #" + task.id() + ": nothing to report");
             return;

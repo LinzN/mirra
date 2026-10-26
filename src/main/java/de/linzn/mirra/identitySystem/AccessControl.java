@@ -98,7 +98,8 @@ public class AccessControl {
                 + describe(chat.userToken()) + "\n"
                 + "Profil: " + user.getIdentityName() + "\n"
                 + "Erste Nachricht: " + shorten(message, 300) + "\n\n"
-                + "Darf die Person mit Mirra schreiben? Antworte z.B. \"ja, " + user.getIdentityName() + " darf schreiben\" oder \"nein\".";
+                + "Darf die Person mit Mirra schreiben? Antworte z.B. \"ja, " + user.getIdentityName() + " darf schreiben\", \"nein\" "
+                + "oder \"das ist der Account von <Name>\", wenn er zu einem bestehenden Nutzer gehört.";
         Optional<IdentityUser> approver = this.plugin.getIdentityManager().findIdentity(this.config.approverName);
         Optional<UserToken> target = approver.flatMap(identity -> this.plugin.getMessenger().tokenOf(identity, null));
         if (target.isEmpty()) {

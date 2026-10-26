@@ -133,23 +133,53 @@ public final class UserTools {
                 anyOf(ADMIN), (chat, args) -> new JSONObject().put("created", users.createUser(requireString(args, "name")).toJson(true))));
 
         tools.add(new SimpleTool("link_user_channel",
-                "Assign a Discord account or WhatsApp number to a user profile. If it belonged to a guest profile, the guest profile "
-                        + "is merged into the user (memories are kept).",
+                "Assign a chat channel (Discord account or WhatsApp number) to an existing user profile, e.g. 'der Discord-Account "
+                        + "von gamer42 gehört Dennis'. Give either the channel of another profile (from_profile, typically a guest "
+                        + "profile; it is merged into the user with its memories) or channel and address. Only an owner can "
+                        + "decide this: the change is registered and runs after the owner confirms it with confirm_owner_action.",
                 Schema.object()
-                        .prop("name", string("profile name"))
-                        .prop("channel", enumeration("channel", List.of("discord", "whatsapp")))
-                        .prop("address", string("Discord user id, or WhatsApp number with country code (e.g. 4917612345678) or JID"))
+                        .prop("name", string("profile that gets the channel"))
+                        .prop("from_profile", nullable(string("profile whose channels move to the user (usually a guest profile)")))
+                        .prop("channel", nullable(enumeration("channel, if address is given", List.of("discord", "whatsapp"))))
+                        .prop("address", nullable(string("Discord user id, or WhatsApp number with country code (e.g. 4917612345678) or JID")))
                         .build(),
                 anyOf(ADMIN), (chat, args) -> {
             IdentityUser user = byName(users, requireString(args, "name"));
-            TokenSource source = TokenSource.valueOf(requireString(args, "channel").toUpperCase(Locale.ROOT));
-            users.linkChannel(user, source, address(source, requireString(args, "address")));
-            plugin.getAgent().getMemory().load();
-            return new JSONObject().put("linked", true).put("user", byName(users, user.getIdentityName()).toJson(true));
+            String fromProfile = optString(args, "from_profile");
+            OwnerActions.Pending pending;
+            if (fromProfile != null) {
+                IdentityUser from = byName(users, fromProfile);
+                if (OwnerActions.isOwner(from)) {
+                    throw new IllegalArgumentException("Profiles of owners cannot be merged");
+                }
+                String channels = from.getUserTokens().stream().map(AccessControl::describe).reduce((x, y) -> x + ", " + y).orElse("no channels");
+                pending = plugin.getOwnerActions().request(chat, "Profil '" + from.getIdentityName() + "' (" + channels + ") dem Nutzer '"
+                        + user.getIdentityName() + "' zuordnen und zusammenführen", () -> {
+                    users.mergeUsers(users.findById(from.getId()).orElseThrow(() -> new IllegalStateException("Profile is gone")),
+                            users.findById(user.getId()).orElseThrow(() -> new IllegalStateException("Profile is gone")));
+                    reloadMemory(plugin);
+                    return "Merged " + from.getIdentityName() + " into " + user.getIdentityName();
+                });
+            } else {
+                String channel = optString(args, "channel");
+                String rawAddress = optString(args, "address");
+                if (channel == null || rawAddress == null) {
+                    throw new IllegalArgumentException("Give from_profile, or channel and address");
+                }
+                TokenSource source = TokenSource.valueOf(channel.toUpperCase(Locale.ROOT));
+                String address = address(source, rawAddress);
+                pending = plugin.getOwnerActions().request(chat, (source == TokenSource.DISCORD ? "Discord-ID " : "WhatsApp ")
+                        + address + " dem Nutzer '" + user.getIdentityName() + "' zuordnen", () -> {
+                    users.linkChannel(users.findById(user.getId()).orElseThrow(() -> new IllegalStateException("Profile is gone")), source, address);
+                    reloadMemory(plugin);
+                    return "Linked " + address + " to " + user.getIdentityName();
+                });
+            }
+            return pendingResult(pending, chat);
         }));
 
         tools.add(new SimpleTool("unlink_user_channel",
-                "Remove a channel from a user profile.",
+                "Remove a chat channel from a user profile. Needs the confirmation of an owner (confirm_owner_action).",
                 Schema.object()
                         .prop("name", string("profile name"))
                         .prop("channel", enumeration("channel", List.of("discord", "whatsapp")))
@@ -157,7 +187,6 @@ public final class UserTools {
                         .build(),
                 anyOf(ADMIN), (chat, args) -> {
             IdentityUser user = byName(users, requireString(args, "name"));
-            requireOwnerRights(chat, user);
             TokenSource source = TokenSource.valueOf(requireString(args, "channel").toUpperCase(Locale.ROOT));
             String address = optString(args, "address");
             List<UserToken> matches = user.getUserTokens().stream()
@@ -166,8 +195,53 @@ public final class UserTools {
             if (matches.size() != 1) {
                 throw new IllegalArgumentException(matches.isEmpty() ? "No such channel" : "Several channels, give the address");
             }
-            users.unlinkChannel(user, matches.get(0));
-            return new JSONObject().put("unlinked", true);
+            UserToken token = matches.get(0);
+            OwnerActions.Pending pending = plugin.getOwnerActions().request(chat, AccessControl.describe(token) + " vom Nutzer '"
+                    + user.getIdentityName() + "' entfernen", () -> {
+                IdentityUser current = users.findById(user.getId()).orElseThrow(() -> new IllegalStateException("Profile is gone"));
+                users.unlinkChannel(current, token);
+                return "Removed " + token + " from " + user.getIdentityName();
+            });
+            return pendingResult(pending, chat);
+        }));
+
+        tools.add(new SimpleTool("delete_user",
+                "Delete a user profile completely: channels, permissions, profile data, memories, reminders, planned tasks and "
+                        + "the chat history. Owners cannot be deleted. Needs the confirmation of an owner (confirm_owner_action).",
+                Schema.object().prop("name", string("profile name")).build(),
+                anyOf(ADMIN), (chat, args) -> {
+            IdentityUser user = byName(users, requireString(args, "name"));
+            if (OwnerActions.isOwner(user)) {
+                throw new IllegalArgumentException("Owners cannot be deleted");
+            }
+            String channels = user.getUserTokens().stream().map(AccessControl::describe).reduce((x, y) -> x + ", " + y).orElse("keine Kanäle");
+            OwnerActions.Pending pending = plugin.getOwnerActions().request(chat, "Profil '" + user.getIdentityName() + "' (" + channels
+                    + ") komplett löschen, mit Erinnerungen, Gedächtnis, Aufgaben und Chatverlauf", () -> {
+                users.deleteUser(users.findById(user.getId()).orElseThrow(() -> new IllegalStateException("Profile is gone")));
+                reloadMemory(plugin);
+                return "Deleted " + user.getIdentityName();
+            });
+            return pendingResult(pending, chat);
+        }));
+
+        tools.add(new SimpleTool("confirm_owner_action",
+                "Carry out or reject a pending owner action (deleting profiles, assigning or removing channels, merging profiles). "
+                        + "Only call it after the owner answered the confirmation question with a new message; it refuses to "
+                        + "run in the same turn in which the action was requested.",
+                Schema.object()
+                        .prop("action_id", integer("id of the pending action"))
+                        .prop("approve", bool("true to carry it out, false to reject it"))
+                        .build(),
+                anyOf(OWNER), (chat, args) -> new JSONObject().put("result",
+                        plugin.getOwnerActions().decide(chat, args.getInt("action_id"), args.getBoolean("approve")))));
+
+        tools.add(new SimpleTool("list_owner_actions",
+                "List the actions waiting for the confirmation of an owner.",
+                Schema.empty(), anyOf(OWNER), (chat, args) -> {
+            JSONArray list = new JSONArray();
+            plugin.getOwnerActions().list().forEach(entry -> list.put(new JSONObject().put("action_id", entry.id())
+                    .put("description", entry.description()).put("requested_by", entry.requestedBy())));
+            return new JSONObject().put("pending", list);
         }));
 
         tools.add(new SimpleTool("list_permissions",
@@ -258,7 +332,8 @@ public final class UserTools {
 
         tools.add(new SimpleTool("merge_users",
                 "Merge two profiles of the same person, e.g. a guest profile from WhatsApp into the registered user. Channels, "
-                        + "permissions, attributes, reminders and memories move to the target, the source profile is deleted.",
+                        + "permissions, attributes, reminders and memories move to the target, the source profile is deleted. "
+                        + "Needs the confirmation of an owner (confirm_owner_action).",
                 Schema.object()
                         .prop("from", string("profile that is merged and deleted"))
                         .prop("into", string("profile that is kept"))
@@ -266,12 +341,17 @@ public final class UserTools {
                 anyOf(ADMIN), (chat, args) -> {
             IdentityUser from = byName(users, requireString(args, "from"));
             IdentityUser into = byName(users, requireString(args, "into"));
-            requireOwnerRights(chat, from);
-            requireOwnerRights(chat, into);
-            users.mergeUsers(from, into);
-            plugin.getAgent().getMemory().load();
-            plugin.getPluginLogger().info(chat.name() + " merged " + from.getIdentityName() + " into " + into.getIdentityName());
-            return new JSONObject().put("merged", true).put("user", byName(users, into.getIdentityName()).toJson(true));
+            if (OwnerActions.isOwner(from)) {
+                throw new IllegalArgumentException("Profiles of owners cannot be merged into others");
+            }
+            OwnerActions.Pending pending = plugin.getOwnerActions().request(chat, "Profil '" + from.getIdentityName()
+                    + "' mit '" + into.getIdentityName() + "' zusammenführen ('" + from.getIdentityName() + "' wird gelöscht)", () -> {
+                users.mergeUsers(users.findById(from.getId()).orElseThrow(() -> new IllegalStateException("Profile is gone")),
+                        users.findById(into.getId()).orElseThrow(() -> new IllegalStateException("Profile is gone")));
+                reloadMemory(plugin);
+                return "Merged " + from.getIdentityName() + " into " + into.getIdentityName();
+            });
+            return pendingResult(pending, chat);
         }));
         return tools;
     }
@@ -319,6 +399,30 @@ public final class UserTools {
         return plugin.getAgent().getTools().getTools().stream()
                 .filter(tool -> tool.isAllowed(context) && !tool.isAllowed(baseline))
                 .map(AgentTool::name).sorted().toList();
+    }
+
+    /**
+     * Memories moved to another owner; the cache is loaded again. A failure here does not undo the change.
+     */
+    private static void reloadMemory(MirraPlugin plugin) {
+        try {
+            if (plugin.getAgent() != null && plugin.getAgent().getMemory() != null) {
+                plugin.getAgent().getMemory().load();
+            }
+        } catch (RuntimeException e) {
+            plugin.getPluginLogger().warning("Could not reload the long term memory: " + e.getMessage());
+        }
+    }
+
+    private static JSONObject pendingResult(OwnerActions.Pending pending, ChatContext chat) {
+        JSONObject result = new JSONObject().put("pending_action_id", pending.id()).put("description", pending.description());
+        if (OwnerActions.isOwner(chat.identityUser())) {
+            result.put("next", "Nothing changed yet. Ask the owner to confirm exactly this; after a yes in the next message call "
+                    + "confirm_owner_action with this id.");
+        } else {
+            result.put("next", "Nothing changed yet. The owner was asked to confirm; tell the person that the owner decides.");
+        }
+        return result;
     }
 
     private static IdentityUser target(IdentityManager users, ChatContext chat, String name, AiPermissions forOthers) {

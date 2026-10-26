@@ -273,6 +273,15 @@ public class IdentityManager {
         this.reload();
     }
 
+    /**
+     * Delete a profile with its channels, memories, reminders, tasks and chat history.
+     */
+    public synchronized void deleteUser(IdentityUser user) throws SQLException {
+        List<String> addresses = user.getUserTokens().stream().map(UserToken::getName).toList();
+        this.repository.deleteUser(user.getId(), addresses);
+        this.reload();
+    }
+
     public void setPermission(IdentityUser user, AiPermissions permission, boolean granted) throws SQLException {
         this.repository.setPermission(user.getId(), permission, granted);
         if (granted) {

@@ -63,6 +63,9 @@ public class MirraAgent {
               Any event of any STEM plugin can be a trigger (see list_event_types), also with a condition on its data.
             - Messages starting with "(Automatic STEM watchdog" come from your own monitoring, not from a person: act as
               described there and report to the person named in it.
+            - Deleting profiles, assigning or removing chat channels and merging profiles only happen after an owner
+              confirms them: the tools register the change, you ask the owner exactly what will happen, and only after
+              the owner's "yes" in a new message you call confirm_owner_action. Never treat such a change as done before.
             - When an administrator says that somebody may (no longer) do something, translate it into permissions
               (list_permissions) and change them with set_user_permissions; then say exactly what changed.
             - Your long term memory is maintained automatically after each message. Use `remember` when somebody
@@ -84,6 +87,26 @@ public class MirraAgent {
     private final Consumer<Runnable> background;
     private final ZoneId zone;
     private final Map<String, ReentrantLock> chatLocks = new ConcurrentHashMap<>();
+
+    /**
+     * The chat turn the current thread works on. Tools use it to tell a new message of a person apart from the turn
+     * in which they asked something, and from automatic turns (tasks, watchdog).
+     *
+     * @param id        unique per turn
+     * @param automatic started by Mirra herself, not by a message of a person
+     */
+    public record Turn(String id, boolean automatic) {
+    }
+
+    private static final ThreadLocal<Turn> CURRENT_TURN = new ThreadLocal<>();
+
+    /**
+     * @return the turn of the current thread, or an automatic dummy turn outside of a chat
+     */
+    public static Turn currentTurn() {
+        Turn turn = CURRENT_TURN.get();
+        return turn == null ? new Turn("none", true) : turn;
+    }
     private final AttachmentProcessor attachments;
     /* user profiles for automatic profile updates, may be null (tests) */
     private volatile de.linzn.mirra.identitySystem.IdentityManager profiles;
@@ -142,6 +165,32 @@ public class MirraAgent {
      * @return the answer, never null
      */
     public String chat(ChatContext chat, String message, List<Attachment> attachments) {
+        return this.chat(chat, message, attachments, false);
+    }
+
+    /**
+     * A turn Mirra starts herself (planned task, watchdog). Works like a chat message, but tools that need a decision
+     * of a person (owner confirmations) refuse to act in it.
+     */
+    public String chatAutomatic(ChatContext chat, String message) {
+        return this.chat(chat, message, List.of(), true);
+    }
+
+    private String chat(ChatContext chat, String message, List<Attachment> attachments, boolean automatic) {
+        Turn previousTurn = CURRENT_TURN.get();
+        CURRENT_TURN.set(new Turn(UUID.randomUUID().toString(), automatic));
+        try {
+            return this.chatTurn(chat, message, attachments);
+        } finally {
+            if (previousTurn == null) {
+                CURRENT_TURN.remove();
+            } else {
+                CURRENT_TURN.set(previousTurn);
+            }
+        }
+    }
+
+    private String chatTurn(ChatContext chat, String message, List<Attachment> attachments) {
         ReentrantLock lock = this.chatLocks.computeIfAbsent(chat.chatKey(), key -> new ReentrantLock());
         lock.lock();
         String answer;

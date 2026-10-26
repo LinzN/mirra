@@ -47,6 +47,7 @@ import de.linzn.mirra.core.reminder.ReminderEngine;
 import de.linzn.mirra.discord.DiscordManager;
 import de.linzn.mirra.identitySystem.AccessControl;
 import de.linzn.mirra.identitySystem.IdentityManager;
+import de.linzn.mirra.identitySystem.OwnerActions;
 import de.linzn.mirra.identitySystem.LegacyMigration;
 import de.linzn.mirra.identitySystem.UserRepository;
 import de.linzn.mirra.listener.MirraReminderListener;
@@ -80,6 +81,7 @@ public class MirraPlugin extends STEMPlugin {
     private ChatMessenger messenger;
     private TaskManager taskManager;
     private AccessControl accessControl;
+    private OwnerActions ownerActions;
     private Watchdog watchdog;
 
     public MirraPlugin() {
@@ -120,6 +122,7 @@ public class MirraPlugin extends STEMPlugin {
         }
         this.identityManager = new IdentityManager(this, userRepository, this.mirraConfig.autoCreateGuests, this.mirraConfig.requireApproval);
         this.accessControl = new AccessControl(this, this.mirraConfig);
+        this.ownerActions = new OwnerActions(this);
 
         OpenAIClient client = new OpenAIClient(this.mirraConfig.openAIBaseUrl, this.mirraConfig.openAIToken, this.mirraConfig.openAITimeoutSeconds);
         /* when the credits run out, Mirra pauses: no requests are sent, chats get the paused message */
@@ -395,6 +398,10 @@ public class MirraPlugin extends STEMPlugin {
         } catch (Exception e) {
             this.getPluginLogger().warning("Could not notify the approver: " + e.getMessage());
         }
+    }
+
+    public OwnerActions getOwnerActions() {
+        return ownerActions;
     }
 
     public AccessControl getAccessControl() {

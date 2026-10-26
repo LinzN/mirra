@@ -95,12 +95,15 @@ model for a final answer without tools.
 | `list_access_requests`    | `ADMIN`                                      | People waiting for approval                         |
 | `decide_access_request`   | `ADMIN`                                      | Approves or denies (blocks) a person                |
 | `create_user`             | `ADMIN`                                      | Creates a registered user                           |
-| `link_user_channel`       | `ADMIN`                                      | Adds a Discord id or WhatsApp number to a user (merges guest profiles) |
-| `unlink_user_channel`     | `ADMIN`                                      | Removes a channel from a user                       |
+| `link_user_channel`       | request: `ADMIN`, confirm: owner             | Assigns a channel (or the channels of a guest profile) to a user |
+| `unlink_user_channel`     | request: `ADMIN`, confirm: owner             | Removes a channel from a user                       |
 | `list_permissions`        | `ADMIN`                                      | All permissions with meaning, unlocked tools and holders |
 | `set_user_permissions`    | `ADMIN`      (`SHELL` only by users with `SHELL`) | Grants and revokes several permissions, optionally tells the user |
 | `set_user_registered`     | `ADMIN`                                      | Turns a guest into a registered user or back        |
-| `merge_users`             | `ADMIN`                                      | Merges two profiles of the same person              |
+| `merge_users`             | request: `ADMIN`, confirm: owner             | Merges two profiles of the same person              |
+| `delete_user`             | request: `ADMIN`, confirm: owner             | Deletes a profile with channels, memories, reminders, tasks and chat history |
+| `confirm_owner_action`    | `OWNER`                                      | Carries out or rejects a confirmed owner action     |
+| `list_owner_actions`      | `OWNER`                                      | Actions waiting for the owner                       |
 | `create_task`             | registered users                             | Plans a task at a time, on a cron schedule or on an event |
 | `list_event_types`        | `STEM_VIEW`                                  | STEM events seen so far with example data           |
 | `list_tasks`              | registered users (all users: `ADMIN`)   | Planned tasks                                       |
@@ -220,8 +223,24 @@ Permissions of earlier versions are renamed automatically on start: `STATUS_LIGH
 `HOME_VIEW`, `STEM_ADMIN` → `ADMIN`; `STATUS_STEM` is dropped (every registered user may ask for the status).
 
 Unknown senders get a guest profile named after their chat name (`users.autoCreateGuests`). An administrator can
-ask Mirra to register a guest, add channels ("Die WhatsApp-Nummer 49176... gehört zu Anna"), merge two profiles
-of the same person or grant permissions.
+ask Mirra to register a guest or grant permissions.
+
+### Changes only the owner decides
+
+Deleting a profile, assigning a channel to an existing user ("der Discord-Account von gamer42 gehört Dennis",
+"die WhatsApp-Nummer 49176... gehört zu Anna"), removing a channel and merging profiles always need the
+confirmation of an owner (`OWNER`):
+
+1. An administrator or the owner asks Mirra. The tool only registers the change as pending action; nothing
+   happens yet.
+2. If the owner asked, Mirra asks back in the same chat what exactly will happen. If an administrator asked, the
+   owners get a message "🔐 Bestätigung nötig (Aktion #n) ...".
+3. Only when the owner answers "ja" in a new message, Mirra calls `confirm_owner_action` and the change runs.
+
+The confirmation is refused in the same turn in which the change was requested and in automatic turns (tasks,
+watchdog), so Mirra cannot confirm on her own. Pending actions expire after 24 hours. Owners cannot be deleted.
+Deleting a profile removes its channels, permissions, profile data, long term memories, reminders, planned tasks
+and the chat history of its channels.
 
 ### Migration from earlier versions
 
