@@ -87,8 +87,10 @@ public final class MirraConfig {
 
     /* social status */
     public final boolean socialStatusEnabled;
-    public final String socialStatusCron;
-    public final boolean socialStatusOnStartup;
+    public final int socialStatusMinDays;
+    public final int socialStatusMaxDays;
+    public final int socialStatusEarliestHour;
+    public final int socialStatusLatestHour;
 
     public MirraConfig(FileConfiguration config) {
         this.openAIToken = string(config, "openAI.token", "xxxx");
@@ -153,8 +155,10 @@ public final class MirraConfig {
         this.memoryContextSize = clamp(integer(config, "memory.contextSize", 12), 0, 50);
 
         this.socialStatusEnabled = bool(config, "agent.socialStatus.enabled", true);
-        this.socialStatusCron = string(config, "agent.socialStatus.cron", "0 14 * * *");
-        this.socialStatusOnStartup = bool(config, "agent.socialStatus.onStartup", true);
+        this.socialStatusMinDays = clamp(integer(config, "agent.socialStatus.minDays", 4), 1, 60);
+        this.socialStatusMaxDays = clamp(integer(config, "agent.socialStatus.maxDays", 10), this.socialStatusMinDays, 90);
+        this.socialStatusEarliestHour = clamp(integer(config, "agent.socialStatus.earliestHour", 9), 0, 23);
+        this.socialStatusLatestHour = clamp(integer(config, "agent.socialStatus.latestHour", 21), this.socialStatusEarliestHour, 23);
         config.save();
     }
 

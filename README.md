@@ -36,7 +36,8 @@ across chats and turns STEM system events into readable messages.
 - **Notifications**: information blocks with the intent `NOTIFY_USER` are sent to the default Discord user
   and WhatsApp chat
 - **AI text engine**: STEM can let Mirra phrase event texts
-- **Social status**: Mirra chooses a new Discord/WhatsApp status on a schedule
+- **Social status**: Mirra chooses a new Discord/WhatsApp status at a random time every few days (about once a
+  week), each time with a random theme
 - **Web search** (optional): the OpenAI web search tool for registered users
 
 ---
@@ -393,8 +394,10 @@ facts (`memory.legacyImported` is set afterwards).
 | `agent.commandTimeoutSeconds`      | `60`                        | Timeout of a console command                 |
 | `agent.scriptTimeoutSeconds`       | `120`                       | Timeout of a script                          |
 | `agent.socialStatus.enabled`       | `true`                      | Let Mirra choose a social status             |
-| `agent.socialStatus.cron`          | `0 14 * * *`                | When to choose a new status                  |
-| `agent.socialStatus.onStartup`     | `true`                      | Also choose one after start                  |
+| `agent.socialStatus.minDays`       | `4`                         | Fewest days until the next status            |
+| `agent.socialStatus.maxDays`       | `10`                        | Most days until the next status              |
+| `agent.socialStatus.earliestHour`  | `9`                         | Earliest hour of day for a new status        |
+| `agent.socialStatus.latestHour`    | `21`                        | Latest hour of day for a new status          |
 | `attachments.enabled`              | `true`                      | Read files sent to Mirra                     |
 | `attachments.guests`               | `false`                     | Also read files of guests                    |
 | `attachments.maxSizeMB`            | `25`                        | Largest file Mirra reads (at most 50)        |

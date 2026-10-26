@@ -223,25 +223,87 @@ public class MirraPlugin extends STEMPlugin {
         });
     }
 
+    private static final String SOCIAL_STATUS_KEY = "mirra-social-status";
+    private static final String[] SOCIAL_STATUS_IDEAS = {
+            "something nerdy about servers, networks or code", "how your week in the smart home went",
+            "a joke about STEM, MirraNET or smart homes", "the season or the weather outside",
+            "a small everyday observation", "your mood today", "something you would like to learn",
+            "a tech tip in one line", "a bit of self-irony about being an AI", "the weekday and what it feels like",
+            "music, games or a series you would like", "a cheeky motto for the next days"};
+
+    /**
+     * The social status changes at a random time every few days ({@code agent.socialStatus.minDays} to
+     * {@code maxDays}, between {@code earliestHour} and {@code latestHour}). The planned time and the last status
+     * are kept in the STEM data store, so a restart neither resets the plan nor posts a new status.
+     */
     private void scheduleSocialStatus() {
         if (!this.mirraConfig.socialStatusEnabled) {
             return;
         }
-        this.getStemApi().scheduler().runCron(this::chooseSocialStatus, this.mirraConfig.socialStatusCron);
-        if (this.mirraConfig.socialStatusOnStartup) {
-            this.getStemApi().scheduler().runLater(this::chooseSocialStatus, 1, TimeUnit.MINUTES);
+        JSONObject state = this.socialStatusState();
+        String last = state.optString("status", "");
+        if (!last.isBlank()) {
+            /* the Discord activity is lost on restart; set the last status again, without a new WhatsApp status */
+            this.getStemApi().scheduler().runLater(() -> this.discordManager.setActivity(last), 1, TimeUnit.MINUTES);
+        }
+        java.time.ZonedDateTime next = null;
+        try {
+            next = state.has("next") ? java.time.ZonedDateTime.parse(state.getString("next")) : null;
+        } catch (Exception ignored) {
+            /* plan a new time */
+        }
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(this.getStemApi().system().getZone());
+        if (next == null) {
+            /* first start: a new status soon, at a random time within the next day */
+            next = this.randomTimeOfDay(now.plusDays(java.util.concurrent.ThreadLocalRandom.current().nextInt(0, 2)), now);
+        } else if (next.isBefore(now)) {
+            /* missed while STEM was offline: catch up a little later */
+            next = now.plusMinutes(java.util.concurrent.ThreadLocalRandom.current().nextInt(10, 120));
+        }
+        this.planSocialStatus(next);
+    }
+
+    private void planSocialStatus(java.time.ZonedDateTime next) {
+        JSONObject state = this.socialStatusState().put("next", next.toString());
+        this.getStemApi().data().set(SOCIAL_STATUS_KEY, state);
+        long delay = Math.max(0, java.time.Duration.between(java.time.ZonedDateTime.now(next.getZone()), next).toMillis());
+        this.getStemApi().scheduler().runLater(this::chooseSocialStatus, delay, TimeUnit.MILLISECONDS);
+        this.getPluginLogger().info("Next social status planned for " + next.toLocalDateTime().withSecond(0).withNano(0));
+    }
+
+    private java.time.ZonedDateTime randomTimeOfDay(java.time.ZonedDateTime day, java.time.ZonedDateTime notBefore) {
+        java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+        int from = this.mirraConfig.socialStatusEarliestHour * 60;
+        int to = this.mirraConfig.socialStatusLatestHour * 60 + 59;
+        java.time.ZonedDateTime time = day.toLocalDate().atStartOfDay(day.getZone()).plusMinutes(random.nextInt(from, to + 1));
+        return time.isAfter(notBefore) ? time : notBefore.plusMinutes(random.nextInt(10, 180));
+    }
+
+    private JSONObject socialStatusState() {
+        try {
+            return this.getStemApi().data().get(SOCIAL_STATUS_KEY).map(de.linzn.stem.modules.databaseModule.DataContainer::getJSON)
+                    .orElseGet(JSONObject::new);
+        } catch (Exception e) {
+            return new JSONObject();
         }
     }
 
     private void chooseSocialStatus() {
+        java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(this.getStemApi().system().getZone());
+        String previous = this.socialStatusState().optString("status", "");
         try {
             JSONObject schema = new JSONObject()
                     .put("type", "object")
                     .put("properties", new JSONObject().put("status", new JSONObject().put("type", "string")))
                     .put("required", new org.json.JSONArray().put("status"))
                     .put("additionalProperties", false);
+            String idea = SOCIAL_STATUS_IDEAS[random.nextInt(SOCIAL_STATUS_IDEAS.length)];
             JSONObject result = this.agent.generateJson("Choose a new social status for yourself for Discord and WhatsApp. "
-                    + "German, at most 100 characters, maybe about MirraNET, STEM or your day. Be creative.", "social_status", schema);
+                    + "German, at most 100 characters, in your own style. Theme for this time: " + idea + ". "
+                    + "It is " + now.getDayOfWeek() + ", " + now.toLocalDate() + ". "
+                    + (previous.isBlank() ? "" : "Your previous status was: \"" + previous + "\" - write something clearly different."),
+                    "social_status", schema);
             String status = this.updateSocialStatus(result.optString("status", ""));
             this.getPluginLogger().info("New social status: " + status);
         } catch (InterruptedException e) {
@@ -249,6 +311,8 @@ public class MirraPlugin extends STEMPlugin {
         } catch (Exception e) {
             this.getPluginLogger().warning("Could not choose a social status: " + e.getMessage());
         }
+        int days = random.nextInt(this.mirraConfig.socialStatusMinDays, this.mirraConfig.socialStatusMaxDays + 1);
+        this.planSocialStatus(this.randomTimeOfDay(now.plusDays(days), now));
     }
 
     /**
@@ -265,6 +329,12 @@ public class MirraPlugin extends STEMPlugin {
             text = text.substring(0, MAX_STATUS_LENGTH);
         }
         this.discordManager.setActivity(text);
+        try {
+            this.getStemApi().data().set(SOCIAL_STATUS_KEY, this.socialStatusState().put("status", text)
+                    .put("changed", java.time.ZonedDateTime.now(this.getStemApi().system().getZone()).toString()));
+        } catch (Exception e) {
+            this.getPluginLogger().debug("Could not store the social status: " + e.getMessage());
+        }
         if (this.whatsappManager.isEnabled()) {
             try {
                 this.whatsappManager.getEvolutionApi().getWebApiProvider().CreateStatusStorie(text, this.whatsappManager.getEvolutionApi().getWebApiProvider().getContacts());
