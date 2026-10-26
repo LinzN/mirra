@@ -55,7 +55,7 @@ public final class ControlTools {
         tools.add(new SimpleTool("stem_remove_information",
                 "Remove (expire) an active information block, e.g. after the person handled it. Get the id from stem_information_blocks.",
                 Schema.object().prop("id", integer("id of the information block")).build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             long id = args.getLong("id");
             InformationBlock block = api.information().get(id)
                     .orElseThrow(() -> new IllegalArgumentException("No information block with id " + id));
@@ -70,7 +70,7 @@ public final class ControlTools {
         tools.add(new SimpleTool("stem_cloud_share",
                 "Create a public share link for a file in the STEM cloud.",
                 Schema.object().prop("path", string("absolute path in the cloud, e.g. /GeneratedImages/x.png")).build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             requireCloud(api);
             CloudFileHandle handle = api.cloud().getFile(requireString(args, "path"))
                     .orElseThrow(() -> new IllegalArgumentException("File not found in the cloud"));
@@ -85,7 +85,7 @@ public final class ControlTools {
                         .prop("content", nullable(string("text content")))
                         .prop("path", nullable(string("absolute path of a file on the STEM server (needs SHELL permission)")))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             requireCloud(api);
             String content = optString(args, "content");
             String path = optString(args, "path");
@@ -118,7 +118,7 @@ public final class ControlTools {
         tools.add(new SimpleTool("stem_data_get",
                 "Read a JSON data container of the STEM data store by key.",
                 Schema.object().prop("key", string("key of the container")).build(),
-                anyOf(STEM_READ), (chat, args) -> {
+                anyOf(STEM_VIEW), (chat, args) -> {
             Optional<DataContainer> container = api.data().get(requireString(args, "key"));
             return container.<Object>map(DataContainer::getJSON).orElse(new JSONObject().put("found", false));
         }));
@@ -129,7 +129,7 @@ public final class ControlTools {
                         .prop("key", string("key of the container"))
                         .prop("json", string("JSON object as text"))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             api.data().set(requireString(args, "key"), new JSONObject(requireString(args, "json")));
             return new JSONObject().put("saved", true);
         }));
@@ -140,7 +140,7 @@ public final class ControlTools {
                         + "other statements return the number of changed rows. Use SHOW TABLES and DESCRIBE to explore. "
                         + "Confirm with the person before changing or deleting data.",
                 Schema.object().prop("query", string("SQL statement")).build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             String query = requireString(args, "query");
             plugin.getPluginLogger().info("SQL by " + chat.name() + ": " + query);
             return api.data().withConnection(connection -> {
@@ -180,7 +180,7 @@ public final class ControlTools {
                         .prop("topic_filter", string("MQTT topic filter"))
                         .prop("seconds", nullable(integer("how long to listen, 1-30, default 3")))
                         .build(),
-                anyOf(STEM_READ), (chat, args) -> {
+                anyOf(STEM_VIEW), (chat, args) -> {
             Integer seconds = optInt(args, "seconds");
             int wait = seconds == null ? 3 : Math.max(1, Math.min(30, seconds));
             List<JSONObject> messages = Collections.synchronizedList(new ArrayList<>());

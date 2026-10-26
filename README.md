@@ -65,62 +65,62 @@ model for a final answer without tools.
 
 | Tool                      | Permission                                   | Description                                         |
 |---------------------------|----------------------------------------------|-----------------------------------------------------|
-| `stem_status`             | `STATUS_STEM` or `STEM_READ`                 | Version, uptime, memory, threads of STEM            |
-| `stem_list_plugins`       | `STEM_READ`                                  | Loaded plugins                                      |
-| `stem_health_checks`      | `STEM_READ`                                  | Results of the health checks                        |
-| `stem_information_blocks` | `STEM_READ`                                  | Active information blocks                           |
-| `stem_notifications`      | `STEM_READ`                                  | Recent notifications                                |
-| `stem_list_commands`      | `STEM_READ`                                  | Registered console commands                         |
-| `stem_run_health_checks`  | `STEM_ADMIN`                                 | Runs all health checks now                          |
-| `stem_run_command`        | `STEM_ADMIN`                                 | Runs a console command and returns its output       |
-| `stem_run_script`         | `STEM_ADMIN`                                 | Runs a script of the STEM script engine             |
-| `stem_mqtt_publish`       | `STEM_ADMIN`                                 | Publishes an MQTT message                           |
-| `stem_push_notification`  | `STEM_ADMIN`                                 | Sends a STEM notification                           |
-| `stem_show_information`   | `STEM_ADMIN`                                 | Shows an information block                          |
-| `stem_remove_information` | `STEM_ADMIN`                                 | Removes (expires) an active information block       |
-| `stem_cloud_share`        | `STEM_ADMIN`                                 | Public link for a file in the STEM cloud            |
-| `stem_cloud_upload`       | `STEM_ADMIN`                                 | Stores a text file (or a server file with `SHELL`) in the cloud |
-| `stem_data_get`           | `STEM_READ`                                  | Reads a JSON container of the STEM data store       |
-| `stem_data_set`           | `STEM_ADMIN`                                 | Writes a JSON container of the STEM data store      |
-| `stem_sql`                | `STEM_ADMIN`                                 | Runs an SQL statement on the STEM database (max. 200 rows) |
-| `stem_mqtt_read`          | `STEM_READ`                                  | Listens to MQTT topics for a few seconds            |
-| `list_users`              | `STEM_READ`                                  | User profiles and their channels (guests optional)  |
-| `get_user_profile`        | own profile; others `STEM_READ`              | Profile fields, attributes, channels, permissions   |
-| `update_user_profile`     | own profile; others `STEM_ADMIN`             | Sets or deletes a profile field or attribute        |
-| `list_access_requests`    | `STEM_ADMIN`                                 | People waiting for approval                         |
-| `decide_access_request`   | `STEM_ADMIN`                                 | Approves or denies (blocks) a person                |
-| `create_user`             | `STEM_ADMIN`                                 | Creates a registered user                           |
-| `link_user_channel`       | `STEM_ADMIN`                                 | Adds a Discord id or WhatsApp number to a user (merges guest profiles) |
-| `unlink_user_channel`     | `STEM_ADMIN`                                 | Removes a channel from a user                       |
-| `list_permissions`        | `STEM_ADMIN`                                 | All permissions with meaning, unlocked tools and holders |
-| `set_user_permissions`    | `STEM_ADMIN` (`SHELL` only by users with `SHELL`) | Grants and revokes several permissions, optionally tells the user |
-| `set_user_registered`     | `STEM_ADMIN`                                 | Turns a guest into a registered user or back        |
-| `merge_users`             | `STEM_ADMIN`                                 | Merges two profiles of the same person              |
+| `stem_status`             | everybody                                   | Version, uptime, memory, threads of STEM            |
+| `stem_list_plugins`       | `STEM_VIEW`                                  | Loaded plugins                                      |
+| `stem_health_checks`      | `STEM_VIEW`                                  | Results of the health checks                        |
+| `stem_information_blocks` | `STEM_VIEW`                                  | Active information blocks                           |
+| `stem_notifications`      | `STEM_VIEW`                                  | Recent notifications                                |
+| `stem_list_commands`      | `STEM_VIEW`                                  | Registered console commands                         |
+| `stem_run_health_checks`  | `ADMIN`                                      | Runs all health checks now                          |
+| `stem_run_command`        | `ADMIN`                                      | Runs a console command and returns its output       |
+| `stem_run_script`         | `ADMIN`                                      | Runs a script of the STEM script engine             |
+| `stem_mqtt_publish`       | `ADMIN`                                      | Publishes an MQTT message                           |
+| `stem_push_notification`  | `ADMIN`                                      | Sends a STEM notification                           |
+| `stem_show_information`   | `ADMIN`                                      | Shows an information block                          |
+| `stem_remove_information` | `ADMIN`                                      | Removes (expires) an active information block       |
+| `stem_cloud_share`        | `ADMIN`                                      | Public link for a file in the STEM cloud            |
+| `stem_cloud_upload`       | `ADMIN`                                      | Stores a text file (or a server file with `SHELL`) in the cloud |
+| `stem_data_get`           | `STEM_VIEW`                                  | Reads a JSON container of the STEM data store       |
+| `stem_data_set`           | `ADMIN`                                      | Writes a JSON container of the STEM data store      |
+| `stem_sql`                | `ADMIN`                                      | Runs an SQL statement on the STEM database (max. 200 rows) |
+| `stem_mqtt_read`          | `STEM_VIEW`                                  | Listens to MQTT topics for a few seconds            |
+| `list_users`              | `STEM_VIEW`                                  | User profiles and their channels (guests optional)  |
+| `get_user_profile`        | own profile; others `STEM_VIEW`              | Profile fields, attributes, channels, permissions   |
+| `update_user_profile`     | own profile; others `ADMIN`                  | Sets or deletes a profile field or attribute        |
+| `list_access_requests`    | `ADMIN`                                      | People waiting for approval                         |
+| `decide_access_request`   | `ADMIN`                                      | Approves or denies (blocks) a person                |
+| `create_user`             | `ADMIN`                                      | Creates a registered user                           |
+| `link_user_channel`       | `ADMIN`                                      | Adds a Discord id or WhatsApp number to a user (merges guest profiles) |
+| `unlink_user_channel`     | `ADMIN`                                      | Removes a channel from a user                       |
+| `list_permissions`        | `ADMIN`                                      | All permissions with meaning, unlocked tools and holders |
+| `set_user_permissions`    | `ADMIN`      (`SHELL` only by users with `SHELL`) | Grants and revokes several permissions, optionally tells the user |
+| `set_user_registered`     | `ADMIN`                                      | Turns a guest into a registered user or back        |
+| `merge_users`             | `ADMIN`                                      | Merges two profiles of the same person              |
 | `create_task`             | registered users                             | Plans a task at a time, on a cron schedule or on an event |
-| `list_event_types`        | `STEM_READ`                                  | STEM events seen so far with example data           |
-| `list_tasks`              | registered users (all users: `STEM_ADMIN`)   | Planned tasks                                       |
-| `cancel_task`             | owner or `STEM_ADMIN`                        | Cancels a planned task                              |
+| `list_event_types`        | `STEM_VIEW`                                  | STEM events seen so far with example data           |
+| `list_tasks`              | registered users (all users: `ADMIN`     )   | Planned tasks                                       |
+| `cancel_task`             | owner or `ADMIN`                             | Cancels a planned task                              |
 | `shell_run`               | `SHELL`                                      | Shell command on the STEM server or via SSH         |
-| `home_list_devices`       | `STEM_READ`                                  | Devices of home-devices with state                  |
-| `home_get_device`         | `STEM_READ`                                  | Details of one device                               |
-| `home_get_lights`         | `STATUS_LIGHT` or `STEM_READ`                | State of all lights                                 |
-| `home_control_device`     | `STEM_ADMIN` (lights also with `SWITCH_LIGHT`) | Switches or dims a device                         |
-| `home_get_profile`        | `STEM_READ`                                  | Active smart home profile                           |
-| `home_set_profile`        | `STEM_ADMIN`                                 | Changes the smart home profile                      |
-| `get_weather`             | `GET_WEATHER`                                | Weather of a location                               |
-| `get_fuel_prices`         | `GET_FUEL_PRICE`                             | Fuel prices                                         |
-| `create_reminder`, `list_reminders`, `cancel_reminder` | `CREATE_REMINDER`, registered users | Reminders                    |
-| `remember`, `forget`      | `LONG_TERM_MEMORY_WRITE`                     | Stores or deletes a long term memory                |
-| `recall`                  | `LONG_TERM_MEMORY_ACCESS` or `LONG_TERM_MEMORY_WRITE` | Searches the long term memory              |
-| `create_image`            | `CREATE_IMAGE`                               | Generates an image and sends it into the chat (link elsewhere); a copy is stored in the cloud under `/GeneratedImages/` |
-| `send_message`            | `STEM_ADMIN`                                 | Text message to another registered user             |
-| `send_file`               | registered users (others: `STEM_ADMIN`, server files: `SHELL`) | Sends a file from text, a server path or a URL |
-| `send_voice_message`      | registered users (others: `STEM_ADMIN`)      | Speaks a text and sends it as voice message         |
+| `home_list_devices`       | `HOME_VIEW`                                  | Devices of home-devices with state                  |
+| `home_get_device`         | `HOME_VIEW`                                  | Details of one device                               |
+| `home_get_lights`         | `HOME_VIEW`                                  | State of all lights                                 |
+| `home_control_device`     | `HOME_CONTROL` (lights also with `HOME_LIGHTS`) | Switches or dims a device                         |
+| `home_get_profile`        | `HOME_VIEW`                                  | Active smart home profile                           |
+| `home_set_profile`        | `HOME_CONTROL`                                 | Changes the smart home profile                      |
+| `get_weather`             | `ASSISTANT`                                  | Weather of a location                               |
+| `get_fuel_prices`         | `ASSISTANT`                                  | Fuel prices                                         |
+| `create_reminder`, `list_reminders`, `cancel_reminder` | `REMINDERS`, registered users       | Reminders                    |
+| `remember`, `forget`      | `MEMORY`                                     | Stores or deletes a long term memory                |
+| `recall`                  | `MEMORY`                                             | Searches the long term memory              |
+| `create_image`            | `IMAGES`                                     | Generates an image and sends it into the chat (link elsewhere); a copy is stored in the cloud under `/GeneratedImages/` |
+| `send_message`            | `ADMIN`                                      | Text message to another registered user             |
+| `send_file`               | registered users (others: `ADMIN`     , server files: `SHELL`) | Sends a file from text, a server path or a URL |
+| `send_voice_message`      | registered users (others: `ADMIN`     )      | Speaks a text and sends it as voice message         |
 | `set_mirra_status`        | no guests                                    | Sets the Discord activity and a WhatsApp status     |
 
-`STEM_ADMIN` includes `STEM_READ`. `SHELL` is separate and not part of `STEM_ADMIN`; give it only to people
-who may run any command on the server. SSH uses the key based login of the user STEM runs as (`BatchMode`, no
-password prompts). Guests only have `STATUS_STEM`. Console commands listed in `agent.blockedCommands` are
+Higher permissions include lower ones (see [Permissions](#permissions-in-the-chat)). `SHELL` is separate and not
+part of `ADMIN`; give it only to people who may run any command on the server. SSH uses the key based login of the user STEM runs as (`BatchMode`, no
+password prompts). Guests have no permissions; everybody can ask for the STEM status. Console commands listed in `agent.blockedCommands` are
 never run. Messages Mirra sends to other users are added to their chat history, so she knows the context
 when they answer.
 
@@ -154,7 +154,7 @@ Every person is one profile (`plugin_mirra_agent_user`) with:
 
 - **channels**: any number of Discord accounts and WhatsApp numbers; Mirra recognizes the person on all of them,
   long term memories, reminders and tasks belong to the person, the chat history is kept per channel
-- **permissions** (see [Tools](#tools)); guests only have `STATUS_STEM`
+- **permissions** (see [Permissions](#permissions-in-the-chat)); guests have none
 - **profile fields**: `full_name`, `nickname`, `birthday`, `language`, `timezone`, `location`,
   `preferred_channel` (used when Mirra sends messages to the person), `notes`
 - **attributes**: any further data as key and value, e.g. `email`, `phone`, `address`, `employer`, `pets`
@@ -182,27 +182,35 @@ later. An approved guest can chat but has no permissions; register the person to
 
 ### Permissions in the chat
 
-Administrators (`STEM_ADMIN`) manage permissions in plain language, e.g. "Dennis darf Lichter schalten",
+Administrators (`ADMIN`) manage permissions in plain language, e.g. "Dennis darf Lichter schalten",
 "Anna darf ab jetzt Erinnerungen anlegen" or "Dennis darf keine Lichter mehr schalten". Mirra maps the request
 to permissions with `list_permissions` (every permission has a description and the list of tools it unlocks,
 computed from the registered tools) and changes them with `set_user_permissions`; changes apply immediately and
 the user can be told about them. Granting a permission to a guest registers the guest. Nobody can remove their
-own `STEM_ADMIN`, and `SHELL` can only be granted or revoked by users who have it.
+own `ADMIN`, `SHELL` can only be granted or revoked by users who have it, `OWNER` is only assigned in the
+database and profiles of owners can only be changed by owners.
 
-| Permission               | Allows                                                                         |
-|--------------------------|--------------------------------------------------------------------------------|
-| `STATUS_STEM`            | STEM status (guests have it too)                                               |
-| `STATUS_LIGHT`           | See which lights are on                                                        |
-| `SWITCH_LIGHT`           | Switch and dim lights                                                          |
-| `GET_WEATHER`            | Weather                                                                        |
-| `GET_FUEL_PRICE`         | Fuel prices                                                                    |
-| `CREATE_IMAGE`           | Create images                                                                  |
-| `CREATE_REMINDER`        | Reminders                                                                      |
-| `LONG_TERM_MEMORY_ACCESS`| Search the long term memory                                                    |
-| `LONG_TERM_MEMORY_WRITE` | Remember/forget explicitly, household facts                                    |
-| `STEM_READ`              | See everything in STEM and the smart home, no changes                         |
-| `STEM_ADMIN`             | Control everything, users and permissions; includes `STEM_READ`                |
-| `SHELL`                  | Shell and SSH commands; not part of `STEM_ADMIN`                               |
+Every registered user can chat, send files and voice messages, keep a profile and plan tasks without any
+permission. Higher permissions include lower ones:
+
+| Permission     | Allows                                                                              | Includes |
+|----------------|-------------------------------------------------------------------------------------|----------|
+| `ASSISTANT`    | Weather and fuel prices                                                             |          |
+| `IMAGES`       | Create images                                                                       |          |
+| `REMINDERS`    | Create, list and cancel reminders                                                   |          |
+| `MEMORY`       | Remember, recall and forget explicitly, household facts                             |          |
+| `HOME_VIEW`    | See devices, lights, sensors and the smart home profile                             |          |
+| `HOME_LIGHTS`  | Switch and dim lights                                                               | `HOME_VIEW` |
+| `HOME_CONTROL` | Control all smart home devices and the smart home profile                           | `HOME_LIGHTS`, `HOME_VIEW` |
+| `STEM_VIEW`    | See plugins, health checks, information blocks, notifications, events, MQTT, users  |          |
+| `ADMIN`        | Everything except `SHELL`: commands, scripts, MQTT, database, cloud, messages to others, users and permissions | all except `SHELL`, `OWNER` |
+| `SHELL`        | Shell commands on the STEM server and via SSH                                       |          |
+| `OWNER`        | Everything, also permissions added later; only assigned in the database             | all      |
+
+Permissions of earlier versions are renamed automatically on start: `STATUS_LIGHT` → `HOME_VIEW`,
+`SWITCH_LIGHT` → `HOME_LIGHTS`, `GET_WEATHER`/`GET_FUEL_PRICE` → `ASSISTANT`, `CREATE_IMAGE` → `IMAGES`,
+`CREATE_REMINDER` → `REMINDERS`, `LONG_TERM_MEMORY_ACCESS`/`_WRITE` → `MEMORY`, `STEM_READ` → `STEM_VIEW` +
+`HOME_VIEW`, `STEM_ADMIN` → `ADMIN`; `STATUS_STEM` is dropped (everybody may ask for the status).
 
 Unknown senders get a guest profile named after their chat name (`users.autoCreateGuests`). An administrator can
 ask Mirra to register a guest, add channels ("Die WhatsApp-Nummer 49176... gehört zu Anna"), merge two profiles
@@ -226,12 +234,12 @@ On the first start the old identity tables are copied into the new tables in one
 | `plugin_mirra_agent_memory`              | `id`, `owner` (`user:<id>`, `global`), `category`, `content`, `importance`, `embedding`, `embedding_model`, `source`, `created`, `updated`, `last_used`, `use_count` |
 | `plugin_mirra_longterm_memory`           | `id`, `memory_data`, `date` (old memory, only read for the one-time import)  |
 
-`address` is the Discord user id or the WhatsApp JID. Example to grant full STEM control in the database
+`address` is the Discord user id or the WhatsApp JID. Example to make yourself owner (all permissions) in the database
 (Mirra picks it up after a restart; through Mirra it applies immediately):
 
 ```sql
 INSERT INTO plugin_mirra_agent_user_permission (user_id, permission)
-SELECT id, 'STEM_ADMIN' FROM plugin_mirra_agent_user WHERE name = 'Niklas';
+SELECT id, 'OWNER' FROM plugin_mirra_agent_user WHERE name = 'Niklas';
 ```
 
 ---

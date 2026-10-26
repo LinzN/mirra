@@ -118,15 +118,17 @@ public final class LegacyMigration {
                  ResultSet rs = statement.executeQuery("SELECT identity_user_id, permission FROM plugin_mirra_identity_user_permissions")) {
                 while (rs.next()) {
                     Integer userId = userIds.get(rs.getInt("identity_user_id"));
-                    AiPermissions permission;
-                    try {
-                        permission = AiPermissions.valueOf(rs.getString("permission"));
-                    } catch (IllegalArgumentException | NullPointerException e) {
-                        logger.warning("Migration: skip unknown permission " + rs.getString("permission"));
+                    List<AiPermissions> mapped = AiPermissions.parse(rs.getString("permission"));
+                    if (mapped.isEmpty()) {
+                        if (AiPermissions.fromLegacy(rs.getString("permission")) == null) {
+                            logger.warning("Migration: skip unknown permission " + rs.getString("permission"));
+                        }
                         continue;
                     }
                     if (userId != null) {
-                        repository.setPermission(connection, userId, permission, true);
+                        for (AiPermissions permission : mapped) {
+                            repository.setPermission(connection, userId, permission, true);
+                        }
                         permissions++;
                     }
                 }

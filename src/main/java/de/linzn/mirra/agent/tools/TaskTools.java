@@ -29,8 +29,8 @@ import java.util.Locale;
 import static de.linzn.mirra.agent.tools.Schema.*;
 import static de.linzn.mirra.agent.tools.SimpleTool.anyOf;
 import static de.linzn.mirra.agent.tools.SimpleTool.notGuest;
-import static de.linzn.mirra.identitySystem.AiPermissions.STEM_ADMIN;
-import static de.linzn.mirra.identitySystem.AiPermissions.STEM_READ;
+import static de.linzn.mirra.identitySystem.AiPermissions.ADMIN;
+import static de.linzn.mirra.identitySystem.AiPermissions.STEM_VIEW;
 
 /**
  * Tools to plan tasks Mirra carries out later or when something happens.
@@ -96,7 +96,7 @@ public final class TaskTools {
                 "List the STEM events that happened since Mirra runs (from all plugins), with how often they occur and an "
                         + "example of their data. Use it to choose event_name, device, match_value or a condition for stem_event tasks.",
                 Schema.object().prop("filter", nullable(string("part of the event name"))).build(),
-                anyOf(STEM_READ), (chat, args) -> {
+                anyOf(STEM_VIEW), (chat, args) -> {
             String filter = optString(args, "filter");
             JSONArray list = new JSONArray();
             for (EventCatalog.Entry entry : manager(plugin).getCatalog().list()) {
@@ -117,7 +117,7 @@ public final class TaskTools {
                 "List the planned tasks of the person (administrators can list all).",
                 Schema.object().prop("all_users", nullable(bool("administrators: true to list the tasks of everybody"))).build(),
                 notGuest(), (chat, args) -> {
-            boolean all = Boolean.TRUE.equals(optBool(args, "all_users")) && chat.has(STEM_ADMIN);
+            boolean all = Boolean.TRUE.equals(optBool(args, "all_users")) && chat.has(ADMIN);
             JSONArray list = new JSONArray();
             manager(plugin).list(all ? null : chat.name()).forEach(task -> list.put(describe(task)));
             return new JSONObject().put("tasks", list);
@@ -129,7 +129,7 @@ public final class TaskTools {
                 notGuest(), (chat, args) -> {
             int id = args.getInt("id");
             AgentTask task = manager(plugin).get(id).orElseThrow(() -> new IllegalArgumentException("No active task #" + id));
-            if (!task.ownerName().equalsIgnoreCase(chat.name()) && !chat.has(STEM_ADMIN)) {
+            if (!task.ownerName().equalsIgnoreCase(chat.name()) && !chat.has(ADMIN)) {
                 throw new IllegalArgumentException("Task #" + id + " belongs to " + task.ownerName());
             }
             manager(plugin).cancel(id);

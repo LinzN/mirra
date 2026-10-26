@@ -57,7 +57,7 @@ public final class StemTools {
 
         tools.add(new SimpleTool("stem_status",
                 "Status of the STEM smart home system: version, uptime, number of plugins and failed health checks.",
-                Schema.empty(), anyOf(STATUS_STEM, STEM_READ), (chat, args) -> {
+                Schema.empty(), chat -> true, (chat, args) -> {
             long seconds = api.system().getUptime().toSeconds();
             int errors = 0;
             for (HealthCheck check : api.health().getChecks()) {
@@ -75,7 +75,7 @@ public final class StemTools {
 
         tools.add(new SimpleTool("stem_list_plugins",
                 "List all loaded STEM plugins with version and build number.",
-                Schema.empty(), anyOf(STEM_READ), (chat, args) -> {
+                Schema.empty(), anyOf(STEM_VIEW), (chat, args) -> {
             JSONArray list = new JSONArray();
             for (STEMPlugin stemPlugin : api.plugins().getPlugins()) {
                 list.put(new JSONObject().put("name", stemPlugin.getPluginName()).put("version", stemPlugin.getVersion())
@@ -87,7 +87,7 @@ public final class StemTools {
         tools.add(new SimpleTool("stem_health_checks",
                 "Results of the last STEM health checks, grouped by level (DONE, WARNING, ERROR, UNKNOWN).",
                 Schema.object().prop("only_problems", bool("true to return only WARNING and ERROR entries")).build(),
-                anyOf(STEM_READ), (chat, args) -> {
+                anyOf(STEM_VIEW), (chat, args) -> {
             boolean onlyProblems = Boolean.TRUE.equals(optBool(args, "only_problems"));
             JSONArray checks = new JSONArray();
             for (HealthCheck check : api.health().getChecks()) {
@@ -113,7 +113,7 @@ public final class StemTools {
 
         tools.add(new SimpleTool("stem_run_health_checks",
                 "Start all STEM health checks in the background. Results are available later with stem_health_checks; some checks take a few minutes.",
-                Schema.empty(), anyOf(STEM_ADMIN), (chat, args) -> {
+                Schema.empty(), anyOf(ADMIN), (chat, args) -> {
             api.scheduler().runAsync(() -> api.health().runNow());
             return new JSONObject().put("success", true).put("message", "Health checks started");
         }));
@@ -125,7 +125,7 @@ public final class StemTools {
                         .prop("include_archived", bool("true to include expired blocks"))
                         .prop("limit", nullable(integer("maximum number of archived blocks, default 10")))
                         .build(),
-                anyOf(STEM_READ), (chat, args) -> {
+                anyOf(STEM_VIEW), (chat, args) -> {
             JSONObject result = new JSONObject();
             result.put("active", blocks(api.information().getActive(), 50, zone));
             if (Boolean.TRUE.equals(optBool(args, "include_archived"))) {
@@ -140,7 +140,7 @@ public final class StemTools {
         tools.add(new SimpleTool("stem_notifications",
                 "Recent STEM notifications, newest first.",
                 Schema.object().prop("limit", nullable(integer("maximum number, default 20"))).build(),
-                anyOf(STEM_READ), (chat, args) -> {
+                anyOf(STEM_VIEW), (chat, args) -> {
             Integer limit = optInt(args, "limit");
             List<ArchivedNotification> recent = new ArrayList<>(api.notifications().getRecent());
             recent.sort(Comparator.comparing(ArchivedNotification::getDate, Comparator.nullsLast(Comparator.reverseOrder())));
@@ -154,7 +154,7 @@ public final class StemTools {
 
         tools.add(new SimpleTool("stem_list_commands",
                 "List all STEM console commands. Use 'help' with stem_run_command to get details if needed.",
-                Schema.empty(), anyOf(STEM_READ), (chat, args) ->
+                Schema.empty(), anyOf(STEM_VIEW), (chat, args) ->
                 new JSONObject().put("commands", new JSONArray(api.commands().getCommands()))
                         .put("blocked", new JSONArray(config.blockedCommands))));
 
@@ -163,7 +163,7 @@ public final class StemTools {
                         + "Examples: 'fuel 5', 'heating status', 'computer status workstation', 'maintenance backup pbs01'. "
                         + "Only run commands the person asked for.",
                 Schema.object().prop("command_line", string("command and arguments separated by spaces")).build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             String commandLine = requireString(args, "command_line");
             String commandName = commandLine.split("\\s+")[0].toLowerCase(Locale.ROOT);
             if (config.blockedCommands.contains(commandName)) {
@@ -182,7 +182,7 @@ public final class StemTools {
                                 .prop("name", string("parameter name"))
                                 .prop("value", string("parameter value")).build()))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             String script = requireString(args, "script");
             if (!script.matches("[A-Za-z0-9_.-]+")) {
                 throw new IllegalArgumentException("Invalid script name");
@@ -211,7 +211,7 @@ public final class StemTools {
                         .prop("payload", string("message payload, often JSON"))
                         .prop("retained", bool("true to keep the message on the broker"))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             String topic = requireString(args, "topic");
             if (topic.contains("#") || topic.contains("+")) {
                 throw new IllegalArgumentException("Wildcards are not allowed in a publish topic");
@@ -227,7 +227,7 @@ public final class StemTools {
                         .prop("message", string("notification text"))
                         .prop("priority", enumeration("priority", List.of("LOW", "DEFAULT", "HIGH", "ASAP")))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             api.notifications().push(requireString(args, "message"), NotificationPriority.valueOf(requireString(args, "priority")));
             return new JSONObject().put("success", true);
         }));
@@ -240,7 +240,7 @@ public final class StemTools {
                         .prop("minutes", nullable(integer("how long it is shown, default 60")))
                         .prop("notify_user", bool("true to also notify the users (Discord, WhatsApp, Telegram)"))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             String text = requireString(args, "text");
             InformationBlock block = new InformationBlock(requireString(args, "title"), text, plugin, text);
             Integer minutes = optInt(args, "minutes");

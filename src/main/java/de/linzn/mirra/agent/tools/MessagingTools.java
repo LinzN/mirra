@@ -59,7 +59,7 @@ public final class MessagingTools {
                         .prop("text", string("the message"))
                         .prop("channel", nullable(enumeration("discord or whatsapp; null for the user's default", List.of("discord", "whatsapp"))))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             UserToken token = recipient(plugin, requireString(args, "recipient"), optString(args, "channel"));
             String text = requireString(args, "text");
             plugin.getMessenger().sendText(token, text);
@@ -160,8 +160,8 @@ public final class MessagingTools {
         if (recipient == null || recipient.isBlank()) {
             return chat.userToken();
         }
-        if (!chat.has(STEM_ADMIN)) {
-            throw new IllegalArgumentException("Sending to other users needs the STEM_ADMIN permission");
+        if (!chat.has(ADMIN)) {
+            throw new IllegalArgumentException("Sending to other users needs the ADMIN permission");
         }
         return recipient(plugin, recipient, null);
     }

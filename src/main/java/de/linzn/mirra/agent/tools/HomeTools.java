@@ -46,7 +46,7 @@ public final class HomeTools {
         tools.add(new SimpleTool("home_list_devices",
                 "List the smart home devices with category, description and current data (switch status, temperatures, printer state, ...).",
                 Schema.object().prop("category", nullable(enumeration("only devices of this category", categories))).build(),
-                anyOf(STEM_READ), (chat, args) -> {
+                anyOf(HOME_VIEW), (chat, args) -> {
             String category = optString(args, "category");
             JSONArray list = new JSONArray();
             for (MqttDevice device : devices()) {
@@ -61,7 +61,7 @@ public final class HomeTools {
         tools.add(new SimpleTool("home_get_device",
                 "Current data of one smart home device.",
                 Schema.object().prop("name", string("device name as listed by home_list_devices")).build(),
-                anyOf(STEM_READ), (chat, args) -> describe(device(requireString(args, "name")))));
+                anyOf(HOME_VIEW), (chat, args) -> describe(device(requireString(args, "name")))));
 
         tools.add(new SimpleTool("home_control_device",
                 "Change a smart home device. Set only the fields that fit the device, all others null: "
@@ -80,9 +80,9 @@ public final class HomeTools {
                         .prop("ac_commands", nullable(string("JSON object with midea2mqtt commands, e.g. {\"power\":true,\"target_temperature\":22}")))
                         .prop("trigger_garage", nullable(bool("true to trigger the garage door")))
                         .build(),
-                chat -> chat.has(STEM_ADMIN) || chat.has(SWITCH_LIGHT), (chat, args) -> {
+                anyOf(HOME_CONTROL, HOME_LIGHTS), (chat, args) -> {
             MqttDevice device = device(requireString(args, "name"));
-            if (!chat.has(STEM_ADMIN) && !isLight(device)) {
+            if (!chat.has(HOME_CONTROL) && !isLight(device)) {
                 return new JSONObject().put("success", false).put("error", "Only lights may be switched with your permissions");
             }
             JSONObject command = new JSONObject();
@@ -118,7 +118,7 @@ public final class HomeTools {
 
         tools.add(new SimpleTool("home_get_lights",
                 "Status of all lights: true = on, false = off.",
-                Schema.empty(), anyOf(STATUS_LIGHT, STEM_READ), (chat, args) -> {
+                Schema.empty(), anyOf(HOME_VIEW), (chat, args) -> {
             JSONObject lights = new JSONObject();
             for (MqttDevice device : devices()) {
                 if (isLight(device) && device.hasData()) {
@@ -130,14 +130,14 @@ public final class HomeTools {
 
         tools.add(new SimpleTool("home_get_profile",
                 "Current smart home profile and the available profiles. The profile changes automatic switch-off, time switches and thermostats.",
-                Schema.empty(), anyOf(STEM_READ), (chat, args) -> new JSONObject()
+                Schema.empty(), anyOf(HOME_VIEW), (chat, args) -> new JSONObject()
                 .put("current", plugin().getProfileController().getCurrentProfile().name())
                 .put("available", new JSONArray(profiles))));
 
         tools.add(new SimpleTool("home_set_profile",
                 "Change the smart home profile, e.g. STANDBY when everybody left or HOLYDAY for vacation.",
                 Schema.object().prop("profile", enumeration("new profile", profiles)).build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(HOME_CONTROL), (chat, args) -> {
             SmartHomeProfile profile = SmartHomeProfile.valueOf(requireString(args, "profile"));
             boolean success = plugin().getProfileController().requestProfileChange(profile);
             return new JSONObject().put("success", success).put("profile", profile.name());

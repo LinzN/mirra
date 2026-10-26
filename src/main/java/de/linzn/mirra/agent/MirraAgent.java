@@ -420,7 +420,7 @@ public class MirraAgent {
                         }
                     };
                 }
-                this.keeper.extract(chat.memoryOwner(), chat.name(), chat.has(AiPermissions.LONG_TERM_MEMORY_WRITE), message, answer,
+                this.keeper.extract(chat.memoryOwner(), chat.name(), chat.has(AiPermissions.MEMORY), message, answer,
                         profile, profileUpdate);
             }
             this.keeper.summarizeIfNeeded(chat.chatKey());

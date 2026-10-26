@@ -107,6 +107,7 @@ public class UserRepository {
                 for (String sql : SCHEMA) {
                     statement.execute(sql);
                 }
+                this.upgradePermissions(connection);
                 for (String[] column : ADDED_COLUMNS) {
                     try (ResultSet rs = connection.getMetaData().getColumns(connection.getCatalog(), null, column[0], column[1])) {
                         if (!rs.next()) {
@@ -117,6 +118,38 @@ public class UserRepository {
             }
             return null;
         });
+    }
+
+    /**
+     * Replace permission names of earlier versions (e.g. SWITCH_LIGHT, STEM_ADMIN) by the current ones.
+     */
+    private void upgradePermissions(Connection connection) throws SQLException {
+        Map<Integer, List<String>> stored = new HashMap<>();
+        try (Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT user_id, permission FROM plugin_mirra_agent_user_permission")) {
+            while (rs.next()) {
+                stored.computeIfAbsent(rs.getInt(1), key -> new ArrayList<>()).add(rs.getString(2));
+            }
+        }
+        for (Map.Entry<Integer, List<String>> entry : stored.entrySet()) {
+            for (String name : entry.getValue()) {
+                List<AiPermissions> replacement = AiPermissions.fromLegacy(name);
+                boolean current = Arrays.stream(AiPermissions.values()).anyMatch(permission -> permission.name().equals(name));
+                if (replacement == null || current) {
+                    continue;
+                }
+                for (AiPermissions permission : replacement) {
+                    this.setPermission(connection, entry.getKey(), permission, true);
+                }
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "DELETE FROM plugin_mirra_agent_user_permission WHERE user_id = ? AND permission = ?")) {
+                    statement.setInt(1, entry.getKey());
+                    statement.setString(2, name);
+                    statement.executeUpdate();
+                }
+                this.logger.info("Permission " + name + " of user " + entry.getKey() + " replaced by " + replacement);
+            }
+        }
     }
 
     public int countUsers() throws SQLException {
@@ -172,11 +205,11 @@ public class UserRepository {
                         if (user == null) {
                             continue;
                         }
-                        try {
-                            user.addPermission(AiPermissions.valueOf(rs.getString("permission")));
-                        } catch (IllegalArgumentException e) {
+                        List<AiPermissions> permissions = AiPermissions.parse(rs.getString("permission"));
+                        if (permissions.isEmpty() && AiPermissions.fromLegacy(rs.getString("permission")) == null) {
                             this.logger.warning("Unknown permission " + rs.getString("permission") + " of user " + user.getIdentityName());
                         }
+                        permissions.forEach(user::addPermission);
                     }
                 }
                 try (ResultSet rs = statement.executeQuery("SELECT * FROM plugin_mirra_agent_user_attribute")) {

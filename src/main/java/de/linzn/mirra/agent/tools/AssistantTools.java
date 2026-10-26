@@ -61,7 +61,7 @@ public final class AssistantTools {
         tools.add(new SimpleTool("get_weather",
                 "Current weather for a location in Germany. Without location: weather and 5 day forecast of the home location.",
                 Schema.object().prop("location", nullable(string("town, e.g. 'Blieskastel'; null for the home location"))).build(),
-                anyOf(GET_WEATHER), (chat, args) -> {
+                anyOf(ASSISTANT), (chat, args) -> {
             String location = optString(args, "location");
             WeatherContainer weather;
             if (location == null || location.isBlank()) {
@@ -98,7 +98,7 @@ public final class AssistantTools {
         tools.add(new SimpleTool("get_fuel_prices",
                 "Fuel prices near home: the cheapest open gas station, or all stations within a radius.",
                 Schema.object().prop("radius_km", nullable(number("list all stations within this distance; null for only the cheapest"))).build(),
-                anyOf(GET_FUEL_PRICE), (chat, args) -> {
+                anyOf(ASSISTANT), (chat, args) -> {
             FuelData fuelData = GasStationPlugin.gasStationPlugin.fuelData;
             Double radius = optDouble(args, "radius_km");
             if (radius == null) {
@@ -119,7 +119,7 @@ public final class AssistantTools {
                         .prop("content", string("what to remind of"))
                         .prop("datetime", string("local date and time, format yyyy-MM-ddTHH:mm, e.g. 2026-11-03T08:30"))
                         .build(),
-                chat -> chat.has(CREATE_REMINDER) && chat.userToken().getId() >= 0, (chat, args) -> {
+                chat -> chat.has(REMINDERS) && chat.userToken().getId() >= 0, (chat, args) -> {
             LocalDateTime time;
             try {
                 time = LocalDateTime.parse(requireString(args, "datetime"), REMINDER_FORMAT);
@@ -136,7 +136,7 @@ public final class AssistantTools {
 
         tools.add(new SimpleTool("list_reminders",
                 "List the open reminders of the person.",
-                Schema.empty(), chat -> chat.has(CREATE_REMINDER) && chat.userToken().getId() >= 0, (chat, args) -> {
+                Schema.empty(), chat -> chat.has(REMINDERS) && chat.userToken().getId() >= 0, (chat, args) -> {
             JSONArray list = new JSONArray();
             for (MirraReminder reminder : plugin.getReminderEngine().getReminders(chat.userToken())) {
                 list.put(new JSONObject().put("id", reminder.getId()).put("content", reminder.getContent())
@@ -148,7 +148,7 @@ public final class AssistantTools {
         tools.add(new SimpleTool("cancel_reminder",
                 "Cancel an open reminder of the person.",
                 Schema.object().prop("id", integer("id from list_reminders")).build(),
-                chat -> chat.has(CREATE_REMINDER) && chat.userToken().getId() >= 0, (chat, args) ->
+                chat -> chat.has(REMINDERS) && chat.userToken().getId() >= 0, (chat, args) ->
                 new JSONObject().put("success", plugin.getReminderEngine().cancelReminder(args.getInt("id"), chat.userToken()))));
 
         /* memory */
@@ -160,7 +160,7 @@ public final class AssistantTools {
                         .prop("category", enumeration("kind of memory", LongTermMemory.CATEGORIES))
                         .prop("importance", integer("1 (minor) to 5 (essential)"))
                         .build(),
-                anyOf(LONG_TERM_MEMORY_WRITE), (chat, args) -> {
+                anyOf(MEMORY), (chat, args) -> {
             String owner = "global".equals(optString(args, "scope")) ? LongTermMemory.GLOBAL : chat.memoryOwner();
             MemoryEntry entry = plugin.getAgent().getMemory().remember(owner, requireString(args, "category"),
                     requireString(args, "content"), args.optInt("importance", 3), "tool");
@@ -173,7 +173,7 @@ public final class AssistantTools {
                         .prop("query", string("what you are looking for, e.g. 'birthday of Max'"))
                         .prop("limit", nullable(integer("maximum results, default 10")))
                         .build(),
-                anyOf(LONG_TERM_MEMORY_ACCESS, LONG_TERM_MEMORY_WRITE), (chat, args) -> {
+                anyOf(MEMORY), (chat, args) -> {
             String query = requireString(args, "query");
             Integer limit = optInt(args, "limit");
             LongTermMemory memory = plugin.getAgent().getMemory();
@@ -191,7 +191,7 @@ public final class AssistantTools {
         tools.add(new SimpleTool("forget",
                 "Delete a memory when the person asks you to forget something.",
                 Schema.object().prop("id", integer("id of the memory")).build(),
-                anyOf(LONG_TERM_MEMORY_WRITE), (chat, args) -> {
+                anyOf(MEMORY), (chat, args) -> {
             int id = args.getInt("id");
             LongTermMemory memory = plugin.getAgent().getMemory();
             MemoryEntry entry = memory.get(id).orElseThrow(() -> new IllegalArgumentException("No memory with id " + id));
@@ -209,7 +209,7 @@ public final class AssistantTools {
                         .prop("description", string("detailed description of the image"))
                         .prop("caption", nullable(string("short text sent with the image")))
                         .build(),
-                anyOf(CREATE_IMAGE), (chat, args) -> {
+                anyOf(IMAGES), (chat, args) -> {
             String description = requireString(args, "description");
             if (plugin.getMessenger() != null && plugin.getMessenger().canSend(chat.userToken())) {
                 byte[] png = plugin.getImageService().generate(description);

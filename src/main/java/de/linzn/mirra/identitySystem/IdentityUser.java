@@ -23,7 +23,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * A user profile: one person with any number of chat channels, permissions, profile fields and free attributes.
- * Guests are profiles created automatically for unknown senders; they only have {@link AiPermissions#STATUS_STEM}.
+ * Guests are profiles created automatically for unknown senders; they have no permissions.
  */
 public class IdentityUser {
 
@@ -103,15 +103,19 @@ public class IdentityUser {
         return Collections.unmodifiableSet(this.aiPermissionsList);
     }
 
+    /**
+     * Guests have no permissions; otherwise the permission or one that includes it (see {@link AiPermissions#includes}).
+     */
     public boolean hasPermission(AiPermissions aiPermissions) {
         if (this.guest) {
-            return aiPermissions == AiPermissions.STATUS_STEM;
+            return false;
         }
-        if (this.aiPermissionsList.contains(aiPermissions)) {
-            return true;
+        for (AiPermissions granted : this.aiPermissionsList) {
+            if (granted.includes(aiPermissions)) {
+                return true;
+            }
         }
-        /* administrators may read everything they may change */
-        return aiPermissions == AiPermissions.STEM_READ && this.aiPermissionsList.contains(AiPermissions.STEM_ADMIN);
+        return false;
     }
 
     public boolean hasUserToken(UserToken userToken) {

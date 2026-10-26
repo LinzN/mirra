@@ -42,14 +42,14 @@ public final class UserTools {
         tools.add(new SimpleTool("list_users",
                 "List the user profiles: registered users and (optionally) guests that wrote to Mirra, with their chat channels.",
                 Schema.object().prop("include_guests", nullable(bool("true to include guest profiles"))).build(),
-                anyOf(STEM_READ), (chat, args) -> {
+                anyOf(STEM_VIEW), (chat, args) -> {
             boolean guests = Boolean.TRUE.equals(optBool(args, "include_guests"));
             JSONArray list = new JSONArray();
             for (IdentityUser user : users.getIdentities()) {
                 if (user.isGuest() && !guests) {
                     continue;
                 }
-                JSONObject entry = user.toJson(chat.has(STEM_ADMIN));
+                JSONObject entry = user.toJson(chat.has(ADMIN));
                 entry.remove("attributes");
                 list.put(entry);
             }
@@ -61,9 +61,9 @@ public final class UserTools {
                         + "Without name the profile of the person you talk to.",
                 Schema.object().prop("name", nullable(string("profile name; null for the person you talk to"))).build(),
                 notGuest(), (chat, args) -> {
-            IdentityUser user = target(users, chat, optString(args, "name"), STEM_READ);
+            IdentityUser user = target(users, chat, optString(args, "name"), STEM_VIEW);
             boolean self = user.getId() == chat.identityUser().getId();
-            return user.toJson(self || chat.has(STEM_ADMIN));
+            return user.toJson(self || chat.has(ADMIN));
         }));
 
         tools.add(new SimpleTool("update_user_profile",
@@ -71,14 +71,14 @@ public final class UserTools {
                         + "change it. Profile fields: " + IdentityUser.PROFILE_FIELDS + " (birthday as YYYY-MM-DD or --MM-DD, "
                         + "preferred_channel discord or whatsapp, language e.g. de). Any other key is stored as attribute, "
                         + "e.g. email, phone, address, car, employer, allergies. A null value deletes the entry. "
-                        + "Changing other people's profiles needs STEM_ADMIN.",
+                        + "Changing other people's profiles needs ADMIN.",
                 Schema.object()
                         .prop("name", nullable(string("profile name; null for the person you talk to")))
                         .prop("key", string("profile field or attribute key (snake_case)"))
                         .prop("value", nullable(string("new value; null to delete")))
                         .build(),
                 notGuest(), (chat, args) -> {
-            IdentityUser user = target(users, chat, optString(args, "name"), STEM_ADMIN);
+            IdentityUser user = target(users, chat, optString(args, "name"), ADMIN);
             String key = requireString(args, "key");
             users.setProfileValue(user, key, optString(args, "value"), user.getId() == chat.identityUser().getId() ? "user" : "admin");
             return new JSONObject().put("saved", true).put("profile", user.toJson(false));
@@ -87,7 +87,7 @@ public final class UserTools {
         /* access requests of new guests */
         tools.add(new SimpleTool("list_access_requests",
                 "List the people waiting for approval to chat with Mirra, with channel, number or Discord name and first message.",
-                Schema.empty(), anyOf(STEM_ADMIN), (chat, args) -> {
+                Schema.empty(), anyOf(ADMIN), (chat, args) -> {
             JSONArray list = new JSONArray();
             for (IdentityUser user : plugin.getAccessControl().pending()) {
                 JSONObject entry = new JSONObject().put("name", user.getIdentityName());
@@ -112,8 +112,9 @@ public final class UserTools {
                         .prop("allowed", bool("true to approve, false to deny"))
                         .prop("register", nullable(bool("true to make the person a registered user right away")))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             IdentityUser user = byName(users, requireString(args, "name"));
+            requireOwnerRights(chat, user);
             boolean allowed = args.getBoolean("allowed");
             if (!allowed && user.getId() == chat.identityUser().getId()) {
                 throw new IllegalArgumentException("You cannot block yourself");
@@ -129,7 +130,7 @@ public final class UserTools {
         tools.add(new SimpleTool("create_user",
                 "Create a new registered user profile. Add its channels with link_user_channel and permissions with set_user_permissions.",
                 Schema.object().prop("name", string("unique profile name, usually the first name")).build(),
-                anyOf(STEM_ADMIN), (chat, args) -> new JSONObject().put("created", users.createUser(requireString(args, "name")).toJson(true))));
+                anyOf(ADMIN), (chat, args) -> new JSONObject().put("created", users.createUser(requireString(args, "name")).toJson(true))));
 
         tools.add(new SimpleTool("link_user_channel",
                 "Assign a Discord account or WhatsApp number to a user profile. If it belonged to a guest profile, the guest profile "
@@ -139,7 +140,7 @@ public final class UserTools {
                         .prop("channel", enumeration("channel", List.of("discord", "whatsapp")))
                         .prop("address", string("Discord user id, or WhatsApp number with country code (e.g. 4917612345678) or JID"))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             IdentityUser user = byName(users, requireString(args, "name"));
             TokenSource source = TokenSource.valueOf(requireString(args, "channel").toUpperCase(Locale.ROOT));
             users.linkChannel(user, source, address(source, requireString(args, "address")));
@@ -154,8 +155,9 @@ public final class UserTools {
                         .prop("channel", enumeration("channel", List.of("discord", "whatsapp")))
                         .prop("address", nullable(string("address if the user has several channels of this kind")))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             IdentityUser user = byName(users, requireString(args, "name"));
+            requireOwnerRights(chat, user);
             TokenSource source = TokenSource.valueOf(requireString(args, "channel").toUpperCase(Locale.ROOT));
             String address = optString(args, "address");
             List<UserToken> matches = user.getUserTokens().stream()
@@ -172,7 +174,7 @@ public final class UserTools {
                 "List all permissions with what they allow and which tools they unlock, and optionally who has them. Use it to "
                         + "map requests like 'Dennis darf Lichter schalten' or 'Anna soll keine Bilder mehr machen' to permissions.",
                 Schema.object().prop("with_users", nullable(bool("true to also list which users have each permission"))).build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             boolean withUsers = Boolean.TRUE.equals(optBool(args, "with_users"));
             JSONArray list = new JSONArray();
             for (AiPermissions permission : AiPermissions.values()) {
@@ -191,7 +193,8 @@ public final class UserTools {
 
         tools.add(new SimpleTool("set_user_permissions",
                 "Grant and/or revoke permissions of a user, e.g. when an administrator says 'Dennis darf Lichter schalten' "
-                        + "(SWITCH_LIGHT, usually together with STATUS_LIGHT) or 'Dennis darf keine Lichter mehr schalten'. "
+                        + "(HOME_LIGHTS) or 'Dennis darf keine Lichter mehr schalten'. Higher permissions include lower ones (see "
+                        + "list_permissions), so give the smallest one that fits. OWNER can only be assigned in the database. "
                         + "Check list_permissions if unsure which permission fits. A guest who gets a permission becomes a "
                         + "registered user. SHELL can only be granted or revoked by somebody who has SHELL. Changes apply immediately.",
                 Schema.object()
@@ -200,15 +203,16 @@ public final class UserTools {
                         .prop("revoke", array("permissions to revoke", enumeration("permission", permissionNames())))
                         .prop("notify", nullable(bool("true to tell the user about the change")))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             IdentityUser user = byName(users, requireString(args, "name"));
             List<AiPermissions> grant = permissions(args.optJSONArray("grant"));
             List<AiPermissions> revoke = permissions(args.optJSONArray("revoke"));
+            requireOwnerRights(chat, user);
             if ((grant.contains(SHELL) || revoke.contains(SHELL)) && !chat.has(SHELL)) {
                 throw new IllegalArgumentException("Only users with SHELL can grant or revoke SHELL");
             }
-            if (user.getId() == chat.identityUser().getId() && revoke.contains(STEM_ADMIN)) {
-                throw new IllegalArgumentException("You cannot remove your own STEM_ADMIN permission");
+            if (user.getId() == chat.identityUser().getId() && revoke.contains(ADMIN)) {
+                throw new IllegalArgumentException("You cannot remove your own ADMIN permission");
             }
             if (!grant.isEmpty() && user.isGuest()) {
                 users.setGuest(user, false);
@@ -245,8 +249,9 @@ public final class UserTools {
                         .prop("name", string("profile name"))
                         .prop("registered", bool("true for a registered user, false for a guest"))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             IdentityUser user = byName(users, requireString(args, "name"));
+            requireOwnerRights(chat, user);
             users.setGuest(user, !args.getBoolean("registered"));
             return new JSONObject().put("saved", true).put("user", user.toJson(true));
         }));
@@ -258,9 +263,11 @@ public final class UserTools {
                         .prop("from", string("profile that is merged and deleted"))
                         .prop("into", string("profile that is kept"))
                         .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
+                anyOf(ADMIN), (chat, args) -> {
             IdentityUser from = byName(users, requireString(args, "from"));
             IdentityUser into = byName(users, requireString(args, "into"));
+            requireOwnerRights(chat, from);
+            requireOwnerRights(chat, into);
             users.mergeUsers(from, into);
             plugin.getAgent().getMemory().load();
             plugin.getPluginLogger().info(chat.name() + " merged " + from.getIdentityName() + " into " + into.getIdentityName());
@@ -269,15 +276,32 @@ public final class UserTools {
         return tools;
     }
 
+    /**
+     * Permissions Mirra may grant or revoke; OWNER is only assigned in the database.
+     */
     private static List<String> permissionNames() {
-        return java.util.Arrays.stream(AiPermissions.values()).map(Enum::name).toList();
+        return java.util.Arrays.stream(AiPermissions.values()).filter(permission -> !AiPermissions.DATABASE_ONLY.contains(permission))
+                .map(Enum::name).toList();
+    }
+
+    /**
+     * Profiles of owners can only be changed by owners.
+     */
+    private static void requireOwnerRights(ChatContext chat, IdentityUser target) {
+        if (target.getPermissions().contains(OWNER) && !chat.identityUser().getPermissions().contains(OWNER)) {
+            throw new IllegalArgumentException(target.getIdentityName() + " is an owner; only owners can change this profile");
+        }
     }
 
     private static List<AiPermissions> permissions(JSONArray names) {
         List<AiPermissions> list = new ArrayList<>();
         if (names != null) {
             for (int i = 0; i < names.length(); i++) {
-                list.add(AiPermissions.valueOf(names.getString(i).trim().toUpperCase(Locale.ROOT)));
+                AiPermissions permission = AiPermissions.valueOf(names.getString(i).trim().toUpperCase(Locale.ROOT));
+                if (AiPermissions.DATABASE_ONLY.contains(permission)) {
+                    throw new IllegalArgumentException(permission + " can only be assigned in the database");
+                }
+                list.add(permission);
             }
         }
         return list;
