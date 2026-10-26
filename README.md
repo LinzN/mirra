@@ -95,7 +95,7 @@ model for a final answer without tools.
 | `create_reminder`, `list_reminders`, `cancel_reminder` | `CREATE_REMINDER`, registered users | Reminders                    |
 | `remember`, `forget`      | `LONG_TERM_MEMORY_WRITE`                     | Stores or deletes a long term memory                |
 | `recall`                  | `LONG_TERM_MEMORY_ACCESS` or `LONG_TERM_MEMORY_WRITE` | Searches the long term memory              |
-| `create_image`            | `CREATE_IMAGE`                               | Generates an image and sends it into the chat (link elsewhere) |
+| `create_image`            | `CREATE_IMAGE`                               | Generates an image and sends it into the chat (link elsewhere); a copy is stored in the cloud under `/GeneratedImages/` |
 | `list_users`              | `STEM_READ`                                  | Registered users and their channels                 |
 | `send_message`            | `STEM_ADMIN`                                 | Text message to another registered user             |
 | `send_file`               | registered users (others: `STEM_ADMIN`, server files: `SHELL`) | Sends a file from text, a server path or a URL |

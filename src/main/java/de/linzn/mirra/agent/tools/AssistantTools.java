@@ -214,7 +214,16 @@ public final class AssistantTools {
             if (plugin.getMessenger() != null && plugin.getMessenger().canSend(chat.userToken())) {
                 byte[] png = plugin.getImageService().generate(description);
                 plugin.getMessenger().sendFile(chat.userToken(), new OutgoingFile("Mirra.png", "image/png", png), optString(args, "caption"));
-                return new JSONObject().put("sent", true).put("note", "The image is already in the chat, do not send a link");
+                JSONObject result = new JSONObject().put("sent", true).put("note", "The image is already in the chat, do not send a link");
+                /* keep a copy in the cloud; the image was delivered anyway, so a failed upload is only logged */
+                if (plugin.getStemApi().cloud().isEnabled()) {
+                    try {
+                        result.put("cloud_url", plugin.getImageService().upload(png, "mirra_", ".png", "/GeneratedImages/"));
+                    } catch (Exception e) {
+                        plugin.getPluginLogger().warning("Could not store generated image in the cloud: " + e.getMessage());
+                    }
+                }
+                return result;
             }
             return new JSONObject().put("url", plugin.getImageService().create(description));
         }));
