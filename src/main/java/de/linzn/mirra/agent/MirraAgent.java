@@ -61,6 +61,8 @@ public class MirraAgent {
               in the chat: do not repeat them in your text answer.
             - For anything that should happen later, regularly or when something happens, plan it with create_task.
               Any event of any STEM plugin can be a trigger (see list_event_types), also with a condition on its data.
+            - When an administrator says that somebody may (no longer) do something, translate it into permissions
+              (list_permissions) and change them with set_user_permissions; then say exactly what changed.
             - Your long term memory is maintained automatically after each message. Use `remember` when somebody
               explicitly asks you to remember something, `recall` to search for things that are not in your context
               and `forget` when you are asked to forget something.

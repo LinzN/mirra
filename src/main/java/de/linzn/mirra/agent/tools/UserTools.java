@@ -127,7 +127,7 @@ public final class UserTools {
 
         /* administration */
         tools.add(new SimpleTool("create_user",
-                "Create a new registered user profile. Add its channels with link_user_channel and permissions with set_user_permission.",
+                "Create a new registered user profile. Add its channels with link_user_channel and permissions with set_user_permissions.",
                 Schema.object().prop("name", string("unique profile name, usually the first name")).build(),
                 anyOf(STEM_ADMIN), (chat, args) -> new JSONObject().put("created", users.createUser(requireString(args, "name")).toJson(true))));
 
@@ -168,26 +168,75 @@ public final class UserTools {
             return new JSONObject().put("unlinked", true);
         }));
 
-        tools.add(new SimpleTool("set_user_permission",
-                "Grant or revoke a permission of a user. Permissions: " + List.of(AiPermissions.values())
-                        + ". SHELL can only be granted by somebody who has SHELL.",
+        tools.add(new SimpleTool("list_permissions",
+                "List all permissions with what they allow and which tools they unlock, and optionally who has them. Use it to "
+                        + "map requests like 'Dennis darf Lichter schalten' or 'Anna soll keine Bilder mehr machen' to permissions.",
+                Schema.object().prop("with_users", nullable(bool("true to also list which users have each permission"))).build(),
+                anyOf(STEM_ADMIN), (chat, args) -> {
+            boolean withUsers = Boolean.TRUE.equals(optBool(args, "with_users"));
+            JSONArray list = new JSONArray();
+            for (AiPermissions permission : AiPermissions.values()) {
+                JSONObject entry = new JSONObject().put("permission", permission.name()).put("allows", permission.getDescription())
+                        .put("tools", new JSONArray(toolsOf(plugin, permission)));
+                if (withUsers) {
+                    JSONArray holders = new JSONArray();
+                    users.getIdentities().stream().filter(user -> !user.isGuest() && user.getPermissions().contains(permission))
+                            .forEach(user -> holders.put(user.getIdentityName()));
+                    entry.put("users", holders);
+                }
+                list.put(entry);
+            }
+            return new JSONObject().put("permissions", list);
+        }));
+
+        tools.add(new SimpleTool("set_user_permissions",
+                "Grant and/or revoke permissions of a user, e.g. when an administrator says 'Dennis darf Lichter schalten' "
+                        + "(SWITCH_LIGHT, usually together with STATUS_LIGHT) or 'Dennis darf keine Lichter mehr schalten'. "
+                        + "Check list_permissions if unsure which permission fits. A guest who gets a permission becomes a "
+                        + "registered user. SHELL can only be granted or revoked by somebody who has SHELL. Changes apply immediately.",
                 Schema.object()
                         .prop("name", string("profile name"))
-                        .prop("permission", enumeration("permission", java.util.Arrays.stream(AiPermissions.values()).map(Enum::name).toList()))
-                        .prop("granted", bool("true to grant, false to revoke"))
+                        .prop("grant", array("permissions to grant", enumeration("permission", permissionNames())))
+                        .prop("revoke", array("permissions to revoke", enumeration("permission", permissionNames())))
+                        .prop("notify", nullable(bool("true to tell the user about the change")))
                         .build(),
                 anyOf(STEM_ADMIN), (chat, args) -> {
             IdentityUser user = byName(users, requireString(args, "name"));
-            AiPermissions permission = AiPermissions.valueOf(requireString(args, "permission"));
-            if (permission == SHELL && !chat.has(SHELL)) {
+            List<AiPermissions> grant = permissions(args.optJSONArray("grant"));
+            List<AiPermissions> revoke = permissions(args.optJSONArray("revoke"));
+            if ((grant.contains(SHELL) || revoke.contains(SHELL)) && !chat.has(SHELL)) {
                 throw new IllegalArgumentException("Only users with SHELL can grant or revoke SHELL");
             }
-            if (user.isGuest()) {
-                throw new IllegalArgumentException(user.getIdentityName() + " is a guest; register the profile first with set_user_registered");
+            if (user.getId() == chat.identityUser().getId() && revoke.contains(STEM_ADMIN)) {
+                throw new IllegalArgumentException("You cannot remove your own STEM_ADMIN permission");
             }
-            users.setPermission(user, permission, args.getBoolean("granted"));
-            plugin.getPluginLogger().info(chat.name() + (args.getBoolean("granted") ? " granted " : " revoked ") + permission + " for " + user.getIdentityName());
-            return new JSONObject().put("saved", true).put("permissions", user.toJson(true).getJSONArray("permissions"));
+            if (!grant.isEmpty() && user.isGuest()) {
+                users.setGuest(user, false);
+            }
+            for (AiPermissions permission : grant) {
+                users.setPermission(user, permission, true);
+            }
+            for (AiPermissions permission : revoke) {
+                users.setPermission(user, permission, false);
+            }
+            plugin.getPluginLogger().info(chat.name() + " changed permissions of " + user.getIdentityName() + ": +" + grant + " -" + revoke);
+            if (Boolean.TRUE.equals(optBool(args, "notify")) && (!grant.isEmpty() || !revoke.isEmpty())) {
+                StringBuilder text = new StringBuilder("ℹ️ " + chat.name() + " hat deine Rechte bei Mirra geändert.");
+                grant.forEach(permission -> text.append("\n✅ ").append(permission.getDescription()));
+                revoke.forEach(permission -> text.append("\n❌ ").append(permission.getDescription()));
+                plugin.getMessenger().tokenOf(user, null).ifPresent(token -> {
+                    try {
+                        plugin.getMessenger().sendText(token, text.toString());
+                        plugin.getAgent().recordOutgoing(token.getName(), text.toString());
+                    } catch (Exception e) {
+                        plugin.getPluginLogger().warning("Could not notify " + user.getIdentityName() + ": " + e.getMessage());
+                    }
+                });
+            }
+            JSONArray now = new JSONArray();
+            user.getPermissions().forEach(permission -> now.put(permission.name()));
+            return new JSONObject().put("saved", true).put("granted", new JSONArray(grant)).put("revoked", new JSONArray(revoke))
+                    .put("permissions_now", now).put("registered", !user.isGuest());
         }));
 
         tools.add(new SimpleTool("set_user_registered",
@@ -218,6 +267,34 @@ public final class UserTools {
             return new JSONObject().put("merged", true).put("user", byName(users, into.getIdentityName()).toJson(true));
         }));
         return tools;
+    }
+
+    private static List<String> permissionNames() {
+        return java.util.Arrays.stream(AiPermissions.values()).map(Enum::name).toList();
+    }
+
+    private static List<AiPermissions> permissions(JSONArray names) {
+        List<AiPermissions> list = new ArrayList<>();
+        if (names != null) {
+            for (int i = 0; i < names.length(); i++) {
+                list.add(AiPermissions.valueOf(names.getString(i).trim().toUpperCase(Locale.ROOT)));
+            }
+        }
+        return list;
+    }
+
+    /**
+     * Tools a registered user with only this permission may use, computed from the tool registry.
+     */
+    private static List<String> toolsOf(MirraPlugin plugin, AiPermissions permission) {
+        IdentityUser probe = new IdentityUser("probe");
+        probe.addPermission(permission);
+        ChatContext context = new ChatContext(UserToken.probe(TokenSource.DISCORD), probe, "probe");
+        IdentityUser nobody = new IdentityUser("nobody");
+        ChatContext baseline = new ChatContext(UserToken.probe(TokenSource.DISCORD), nobody, "nobody");
+        return plugin.getAgent().getTools().getTools().stream()
+                .filter(tool -> tool.isAllowed(context) && !tool.isAllowed(baseline))
+                .map(AgentTool::name).sorted().toList();
     }
 
     private static IdentityUser target(IdentityManager users, ChatContext chat, String name, AiPermissions forOthers) {

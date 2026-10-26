@@ -43,6 +43,13 @@ public class UserToken {
     }
 
     /**
+     * A stand-in channel, e.g. to check which tools a permission unlocks. Never stored.
+     */
+    public static UserToken probe(TokenSource source) {
+        return new UserToken(0, "probe", source);
+    }
+
+    /**
      * @return the address on the channel (Discord user id, WhatsApp JID)
      */
     public String getName() {

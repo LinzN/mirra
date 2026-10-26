@@ -92,7 +92,8 @@ model for a final answer without tools.
 | `create_user`             | `STEM_ADMIN`                                 | Creates a registered user                           |
 | `link_user_channel`       | `STEM_ADMIN`                                 | Adds a Discord id or WhatsApp number to a user (merges guest profiles) |
 | `unlink_user_channel`     | `STEM_ADMIN`                                 | Removes a channel from a user                       |
-| `set_user_permission`     | `STEM_ADMIN` (`SHELL` only by users with `SHELL`) | Grants or revokes a permission                 |
+| `list_permissions`        | `STEM_ADMIN`                                 | All permissions with meaning, unlocked tools and holders |
+| `set_user_permissions`    | `STEM_ADMIN` (`SHELL` only by users with `SHELL`) | Grants and revokes several permissions, optionally tells the user |
 | `set_user_registered`     | `STEM_ADMIN`                                 | Turns a guest into a registered user or back        |
 | `merge_users`             | `STEM_ADMIN`                                 | Merges two profiles of the same person              |
 | `create_task`             | registered users                             | Plans a task at a time, on a cron schedule or on an event |
@@ -178,6 +179,30 @@ When somebody unknown writes to Mirra (`users.requireApproval`, on by default):
 Until the decision, further messages are not answered; the pending info is repeated at most every six hours.
 `list_access_requests` shows the open requests; `decide_access_request` can also block or unblock somebody
 later. An approved guest can chat but has no permissions; register the person to grant permissions.
+
+### Permissions in the chat
+
+Administrators (`STEM_ADMIN`) manage permissions in plain language, e.g. "Dennis darf Lichter schalten",
+"Anna darf ab jetzt Erinnerungen anlegen" or "Dennis darf keine Lichter mehr schalten". Mirra maps the request
+to permissions with `list_permissions` (every permission has a description and the list of tools it unlocks,
+computed from the registered tools) and changes them with `set_user_permissions`; changes apply immediately and
+the user can be told about them. Granting a permission to a guest registers the guest. Nobody can remove their
+own `STEM_ADMIN`, and `SHELL` can only be granted or revoked by users who have it.
+
+| Permission               | Allows                                                                         |
+|--------------------------|--------------------------------------------------------------------------------|
+| `STATUS_STEM`            | STEM status (guests have it too)                                               |
+| `STATUS_LIGHT`           | See which lights are on                                                        |
+| `SWITCH_LIGHT`           | Switch and dim lights                                                          |
+| `GET_WEATHER`            | Weather                                                                        |
+| `GET_FUEL_PRICE`         | Fuel prices                                                                    |
+| `CREATE_IMAGE`           | Create images                                                                  |
+| `CREATE_REMINDER`        | Reminders                                                                      |
+| `LONG_TERM_MEMORY_ACCESS`| Search the long term memory                                                    |
+| `LONG_TERM_MEMORY_WRITE` | Remember/forget explicitly, household facts                                    |
+| `STEM_READ`              | See everything in STEM and the smart home, no changes                         |
+| `STEM_ADMIN`             | Control everything, users and permissions; includes `STEM_READ`                |
+| `SHELL`                  | Shell and SSH commands; not part of `STEM_ADMIN`                               |
 
 Unknown senders get a guest profile named after their chat name (`users.autoCreateGuests`). An administrator can
 ask Mirra to register a guest, add channels ("Die WhatsApp-Nummer 49176... gehört zu Anna"), merge two profiles
