@@ -75,6 +75,11 @@ public class OnNewChatMessageListener {
 
     private void answer(String sender, String content, JidClient identifier, TextMessage textMessage) {
         this.plugin.getPluginLogger().info("WhatsApp message from " + sender + (textMessage.hasMedia() ? " with " + textMessage.media().type() : ""));
+        UserToken userToken = this.plugin.getIdentityManager().resolve(identifier.toString(), TokenSource.WHATSAPP, sender);
+        ChatContext chat = this.plugin.chatContext(userToken, sender == null || sender.isBlank() ? "WhatsApp" : sender);
+        if (!this.plugin.getAccessControl().allow(chat, content.isBlank() && textMessage.hasMedia() ? "(" + textMessage.media().type() + ")" : content)) {
+            return;
+        }
         this.plugin.getStemApi().scheduler().runAsync(() -> {
             try {
                 evolutionApi.getWebApiProvider().SetOnlineOffline(true);
@@ -83,8 +88,6 @@ public class OnNewChatMessageListener {
                 this.plugin.getPluginLogger().debug("Unable to set WhatsApp presence: " + e.getMessage());
             }
         });
-        UserToken userToken = this.plugin.getIdentityManager().resolve(identifier.toString(), TokenSource.WHATSAPP, sender);
-        ChatContext chat = this.plugin.chatContext(userToken, sender == null || sender.isBlank() ? "WhatsApp" : sender);
         List<Attachment> attachments = textMessage.hasMedia() ? List.of(this.download(textMessage)) : List.of();
         String answer = this.plugin.getAgent().chat(chat, content, attachments);
         try {

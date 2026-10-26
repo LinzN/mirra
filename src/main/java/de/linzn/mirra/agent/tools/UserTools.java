@@ -84,6 +84,47 @@ public final class UserTools {
             return new JSONObject().put("saved", true).put("profile", user.toJson(false));
         }));
 
+        /* access requests of new guests */
+        tools.add(new SimpleTool("list_access_requests",
+                "List the people waiting for approval to chat with Mirra, with channel, number or Discord name and first message.",
+                Schema.empty(), anyOf(STEM_ADMIN), (chat, args) -> {
+            JSONArray list = new JSONArray();
+            for (IdentityUser user : plugin.getAccessControl().pending()) {
+                JSONObject entry = new JSONObject().put("name", user.getIdentityName());
+                JSONArray channels = new JSONArray();
+                user.getUserTokens().forEach(token -> channels.put(AccessControl.describe(token)));
+                entry.put("channels", channels);
+                String first = user.getAttributes().get("access_request_message");
+                if (first != null) {
+                    entry.put("first_message", first);
+                }
+                list.put(entry);
+            }
+            return new JSONObject().put("pending", list);
+        }));
+
+        tools.add(new SimpleTool("decide_access_request",
+                "Approve or deny that a person may chat with Mirra (answer to an access request). Approved guests can chat but "
+                        + "have no permissions; with register=true they become registered users. Denied people are ignored. "
+                        + "Can also be used later to block or unblock somebody.",
+                Schema.object()
+                        .prop("name", string("profile name from the access request"))
+                        .prop("allowed", bool("true to approve, false to deny"))
+                        .prop("register", nullable(bool("true to make the person a registered user right away")))
+                        .build(),
+                anyOf(STEM_ADMIN), (chat, args) -> {
+            IdentityUser user = byName(users, requireString(args, "name"));
+            boolean allowed = args.getBoolean("allowed");
+            if (!allowed && user.getId() == chat.identityUser().getId()) {
+                throw new IllegalArgumentException("You cannot block yourself");
+            }
+            if (allowed && Boolean.TRUE.equals(optBool(args, "register"))) {
+                users.setGuest(user, false);
+            }
+            plugin.getAccessControl().decide(user, allowed, chat.name());
+            return new JSONObject().put("saved", true).put("user", user.toJson(true));
+        }));
+
         /* administration */
         tools.add(new SimpleTool("create_user",
                 "Create a new registered user profile. Add its channels with link_user_channel and permissions with set_user_permission.",

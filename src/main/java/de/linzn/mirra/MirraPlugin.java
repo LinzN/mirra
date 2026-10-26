@@ -44,6 +44,7 @@ import de.linzn.mirra.agent.tools.StemTools;
 import de.linzn.mirra.agent.tools.ToolRegistry;
 import de.linzn.mirra.core.reminder.ReminderEngine;
 import de.linzn.mirra.discord.DiscordManager;
+import de.linzn.mirra.identitySystem.AccessControl;
 import de.linzn.mirra.identitySystem.IdentityManager;
 import de.linzn.mirra.identitySystem.LegacyMigration;
 import de.linzn.mirra.identitySystem.UserRepository;
@@ -77,6 +78,7 @@ public class MirraPlugin extends STEMPlugin {
     private AttachmentProcessor attachmentProcessor;
     private ChatMessenger messenger;
     private TaskManager taskManager;
+    private AccessControl accessControl;
 
     public MirraPlugin() {
         mirraPlugin = this;
@@ -114,7 +116,8 @@ public class MirraPlugin extends STEMPlugin {
         } catch (SQLException e) {
             this.getPluginLogger().error("Could not prepare or migrate the user profiles", e);
         }
-        this.identityManager = new IdentityManager(this, userRepository, this.mirraConfig.autoCreateGuests);
+        this.identityManager = new IdentityManager(this, userRepository, this.mirraConfig.autoCreateGuests, this.mirraConfig.requireApproval);
+        this.accessControl = new AccessControl(this, this.mirraConfig);
 
         OpenAIClient client = new OpenAIClient(this.mirraConfig.openAIBaseUrl, this.mirraConfig.openAIToken, this.mirraConfig.openAITimeoutSeconds);
         LongTermMemory memory = new LongTermMemory(repository, new LongTermMemory.Embedder() {
@@ -265,6 +268,10 @@ public class MirraPlugin extends STEMPlugin {
      */
     public TaskManager getTaskManager() {
         return taskManager;
+    }
+
+    public AccessControl getAccessControl() {
+        return accessControl;
     }
 
     public ChatMessenger getMessenger() {

@@ -40,6 +40,14 @@ public class IdentityUser {
     private final Map<String, String> fields = new ConcurrentHashMap<>();
     private final Map<String, String> attributes = new ConcurrentHashMap<>();
     private volatile boolean guest;
+    private volatile Access access = Access.APPROVED;
+
+    /**
+     * Whether the person may chat with Mirra. New guests wait for the approval of an administrator.
+     */
+    public enum Access {
+        APPROVED, PENDING, DENIED
+    }
     private volatile LocalDateTime created;
     private volatile LocalDateTime lastSeen;
 
@@ -73,6 +81,14 @@ public class IdentityUser {
 
     void setGuest(boolean guest) {
         this.guest = guest;
+    }
+
+    public Access getAccess() {
+        return access;
+    }
+
+    void setAccess(Access access) {
+        this.access = access == null ? Access.APPROVED : access;
     }
 
     public void addPermission(AiPermissions aiPermissions) {
@@ -170,7 +186,8 @@ public class IdentityUser {
      * @param withPrivate include permissions and channel addresses
      */
     public JSONObject toJson(boolean withPrivate) {
-        JSONObject json = new JSONObject().put("name", this.identityName).put("guest", this.guest);
+        JSONObject json = new JSONObject().put("name", this.identityName).put("guest", this.guest)
+                .put("access", this.access.name().toLowerCase(Locale.ROOT));
         JSONObject profile = new JSONObject();
         for (String field : PROFILE_FIELDS) {
             this.field(field).ifPresent(value -> profile.put(field, value));

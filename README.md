@@ -87,6 +87,8 @@ model for a final answer without tools.
 | `list_users`              | `STEM_READ`                                  | User profiles and their channels (guests optional)  |
 | `get_user_profile`        | own profile; others `STEM_READ`              | Profile fields, attributes, channels, permissions   |
 | `update_user_profile`     | own profile; others `STEM_ADMIN`             | Sets or deletes a profile field or attribute        |
+| `list_access_requests`    | `STEM_ADMIN`                                 | People waiting for approval                         |
+| `decide_access_request`   | `STEM_ADMIN`                                 | Approves or denies (blocks) a person                |
 | `create_user`             | `STEM_ADMIN`                                 | Creates a registered user                           |
 | `link_user_channel`       | `STEM_ADMIN`                                 | Adds a Discord id or WhatsApp number to a user (merges guest profiles) |
 | `unlink_user_channel`     | `STEM_ADMIN`                                 | Removes a channel from a user                       |
@@ -160,6 +162,23 @@ Mirra fills the profile herself: after every answer the memory model looks for l
 stated (name, birthday, city, email, ...) and stores it; people can also ask her to change or delete entries.
 The profile of the person is part of every request, so Mirra knows it without asking.
 
+### Approval of new contacts
+
+When somebody unknown writes to Mirra (`users.requireApproval`, on by default):
+
+1. Mirra creates a guest profile with the access state `pending` and answers with a short "request pending"
+   message (`users.pendingMessage`).
+2. The approver (`users.approver`, by default `default.identityName`) gets a message on their preferred channel:
+   on Discord with the Discord name and id, on WhatsApp with the phone number and the WhatsApp name, plus the
+   first message.
+3. The approver answers Mirra in the chat ("ja, Max darf schreiben" / "nein"), Mirra calls
+   `decide_access_request`. Approved people get `users.approvedMessage` and an answer to their first message;
+   denied people get `users.deniedMessage` (empty by default, so nothing) and are ignored from then on.
+
+Until the decision, further messages are not answered; the pending info is repeated at most every six hours.
+`list_access_requests` shows the open requests; `decide_access_request` can also block or unblock somebody
+later. An approved guest can chat but has no permissions; register the person to grant permissions.
+
 Unknown senders get a guest profile named after their chat name (`users.autoCreateGuests`). An administrator can
 ask Mirra to register a guest, add channels ("Die WhatsApp-Nummer 49176... gehört zu Anna"), merge two profiles
 of the same person or grant permissions.
@@ -171,7 +190,7 @@ On the first start the old identity tables are copied into the new tables in one
 
 | Old                                      | New                                   |
 |------------------------------------------|---------------------------------------|
-| `plugin_mirra_agent_user`                | `id`, `name`, `guest`, `full_name`, `nickname`, `birthday`, `language`, `timezone`, `location`, `preferred_channel`, `notes`, `created`, `updated`, `last_seen` |
+| `plugin_mirra_agent_user`                | `id`, `name`, `guest`, `access` (`APPROVED`, `PENDING`, `DENIED`), `full_name`, `nickname`, `birthday`, `language`, `timezone`, `location`, `preferred_channel`, `notes`, `created`, `updated`, `last_seen` |
 | `plugin_mirra_agent_user_channel`        | `id`, `user_id`, `source` (`DISCORD`, `WHATSAPP`), `address`, `display_name`, `created`, `last_seen` |
 | `plugin_mirra_agent_user_permission`     | `user_id`, `permission` (see [Tools](#tools))                                |
 | `plugin_mirra_agent_user_attribute`      | `user_id`, `attr_key`, `attr_value`, `source` (`user`, `admin`, `auto`), `updated` |

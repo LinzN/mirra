@@ -33,16 +33,22 @@ public class IdentityManager {
     private final STEMPlugin plugin;
     private final UserRepository repository;
     private final boolean autoCreateGuests;
+    private final boolean requireApproval;
     private final Map<Integer, IdentityUser> users = new ConcurrentHashMap<>();
     private final Map<String, UserToken> channels = new ConcurrentHashMap<>();
     /* senders without a profile when guests are not created automatically */
     private final Map<String, UserToken> anonymous = new ConcurrentHashMap<>();
     private final Map<Integer, LocalDateTime> touched = new ConcurrentHashMap<>();
 
-    public IdentityManager(STEMPlugin plugin, UserRepository repository, boolean autoCreateGuests) {
+    /**
+     * @param autoCreateGuests create a guest profile for unknown senders
+     * @param requireApproval  new guests have to be approved by an administrator; implies guest profiles
+     */
+    public IdentityManager(STEMPlugin plugin, UserRepository repository, boolean autoCreateGuests, boolean requireApproval) {
         this.plugin = plugin;
         this.repository = repository;
-        this.autoCreateGuests = autoCreateGuests;
+        this.autoCreateGuests = autoCreateGuests || requireApproval;
+        this.requireApproval = requireApproval;
         this.reload();
     }
 
@@ -159,6 +165,10 @@ public class IdentityManager {
             int channelId = this.repository.insertChannel(userId, source, address, displayName);
             IdentityUser user = new IdentityUser(userId, name, true);
             user.setCreated(LocalDateTime.now());
+            if (this.requireApproval) {
+                this.repository.setAccess(userId, IdentityUser.Access.PENDING);
+                user.setAccess(IdentityUser.Access.PENDING);
+            }
             UserToken token = new UserToken(channelId, address, source, userId, displayName);
             user.assignUserToken(token);
             this.users.put(userId, user);
@@ -272,9 +282,17 @@ public class IdentityManager {
         }
     }
 
+    public void setAccess(IdentityUser user, IdentityUser.Access access) throws SQLException {
+        this.repository.setAccess(user.getId(), access);
+        user.setAccess(access);
+    }
+
     public void setGuest(IdentityUser user, boolean guest) throws SQLException {
         this.repository.setGuest(user.getId(), guest);
         user.setGuest(guest);
+        if (!guest && user.getAccess() != IdentityUser.Access.APPROVED) {
+            this.setAccess(user, IdentityUser.Access.APPROVED);
+        }
     }
 
     /**

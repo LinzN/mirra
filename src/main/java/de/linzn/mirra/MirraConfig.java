@@ -66,6 +66,11 @@ public final class MirraConfig {
     public final List<String> shellAllowedHosts;
 
     public final boolean autoCreateGuests;
+    public final boolean requireApproval;
+    public final String approverName;
+    public final String pendingMessage;
+    public final String approvedMessage;
+    public final String deniedMessage;
 
     public final boolean autoMemory;
     public final int summaryThreshold;
@@ -117,6 +122,12 @@ public final class MirraConfig {
         this.shellAllowedHosts = stringList(config, "agent.shell.allowedHosts", List.of());
 
         this.autoCreateGuests = bool(config, "users.autoCreateGuests", true);
+        this.requireApproval = bool(config, "users.requireApproval", true);
+        this.approverName = string(config, "users.approver", this.defaultIdentityName);
+        this.pendingMessage = string(config, "users.pendingMessage",
+                "Hi! 👋 Ich bin Mirra. Deine Anfrage wurde weitergeleitet und wartet auf Freigabe. Ich melde mich, sobald du freigeschaltet bist. (Request pending)");
+        this.approvedMessage = string(config, "users.approvedMessage", "Du bist freigeschaltet ✅ Ab jetzt kannst du mit mir schreiben.");
+        this.deniedMessage = string(config, "users.deniedMessage", "");
 
         this.autoMemory = bool(config, "memory.autoExtract", true);
         this.summaryThreshold = clamp(integer(config, "memory.summaryThreshold", 40), 10, 500);

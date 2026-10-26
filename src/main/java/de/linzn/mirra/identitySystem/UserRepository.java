@@ -30,6 +30,7 @@ public class UserRepository {
               id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
               name VARCHAR(191) NOT NULL,
               guest TINYINT NOT NULL DEFAULT 0,
+              access VARCHAR(16) NOT NULL DEFAULT 'APPROVED',
               full_name VARCHAR(191) NULL,
               nickname VARCHAR(191) NULL,
               birthday VARCHAR(16) NULL,
@@ -83,6 +84,11 @@ public class UserRepository {
             ) DEFAULT CHARSET=utf8mb4"""
     };
 
+    /* columns added after the first release of the tables */
+    private static final String[][] ADDED_COLUMNS = {
+            {"plugin_mirra_agent_user", "access", "VARCHAR(16) NOT NULL DEFAULT 'APPROVED'"}
+    };
+
     private final DataService data;
     private final StemLogger logger;
 
@@ -100,6 +106,13 @@ public class UserRepository {
             try (Statement statement = connection.createStatement()) {
                 for (String sql : SCHEMA) {
                     statement.execute(sql);
+                }
+                for (String[] column : ADDED_COLUMNS) {
+                    try (ResultSet rs = connection.getMetaData().getColumns(connection.getCatalog(), null, column[0], column[1])) {
+                        if (!rs.next()) {
+                            statement.execute("ALTER TABLE " + column[0] + " ADD COLUMN " + column[1] + " " + column[2]);
+                        }
+                    }
                 }
             }
             return null;
@@ -127,6 +140,11 @@ public class UserRepository {
                         IdentityUser user = new IdentityUser(rs.getInt("id"), rs.getString("name"), rs.getBoolean("guest"));
                         for (String field : IdentityUser.PROFILE_FIELDS) {
                             user.setField(field, rs.getString(field));
+                        }
+                        try {
+                            user.setAccess(IdentityUser.Access.valueOf(rs.getString("access")));
+                        } catch (IllegalArgumentException | NullPointerException e) {
+                            user.setAccess(IdentityUser.Access.APPROVED);
                         }
                         user.setCreated(time(rs.getTimestamp("created")));
                         user.setLastSeen(time(rs.getTimestamp("last_seen")));
@@ -244,6 +262,17 @@ public class UserRepository {
             try (PreparedStatement statement = connection.prepareStatement(
                     "UPDATE plugin_mirra_agent_user SET " + field + " = ?, updated = NOW() WHERE id = ?")) {
                 statement.setString(1, value == null || value.isBlank() ? null : value);
+                statement.setInt(2, userId);
+                statement.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public void setAccess(int userId, IdentityUser.Access access) throws SQLException {
+        this.data.withConnection(connection -> {
+            try (PreparedStatement statement = connection.prepareStatement("UPDATE plugin_mirra_agent_user SET access = ?, updated = NOW() WHERE id = ?")) {
+                statement.setString(1, access.name());
                 statement.setInt(2, userId);
                 statement.executeUpdate();
             }
