@@ -65,7 +65,7 @@ model for a final answer without tools.
 
 | Tool                      | Permission                                   | Description                                         |
 |---------------------------|----------------------------------------------|-----------------------------------------------------|
-| `stem_status`             | everybody                                   | Version, uptime, memory, threads of STEM            |
+| `stem_status`             | registered users                             | Version, uptime, memory, threads of STEM            |
 | `stem_list_plugins`       | `STEM_VIEW`                                  | Loaded plugins                                      |
 | `stem_health_checks`      | `STEM_VIEW`                                  | Results of the health checks                        |
 | `stem_information_blocks` | `STEM_VIEW`                                  | Active information blocks                           |
@@ -120,7 +120,7 @@ model for a final answer without tools.
 
 Higher permissions include lower ones (see [Permissions](#permissions-in-the-chat)). `SHELL` is separate and not
 part of `ADMIN`; give it only to people who may run any command on the server. SSH uses the key based login of the user STEM runs as (`BatchMode`, no
-password prompts). Guests have no permissions; everybody can ask for the STEM status. Console commands listed in `agent.blockedCommands` are
+password prompts). Guests have no permissions and no tools. Console commands listed in `agent.blockedCommands` are
 never run. Messages Mirra sends to other users are added to their chat history, so she knows the context
 when they answer.
 
@@ -210,7 +210,7 @@ permission. Higher permissions include lower ones:
 Permissions of earlier versions are renamed automatically on start: `STATUS_LIGHT` → `HOME_VIEW`,
 `SWITCH_LIGHT` → `HOME_LIGHTS`, `GET_WEATHER`/`GET_FUEL_PRICE` → `ASSISTANT`, `CREATE_IMAGE` → `IMAGES`,
 `CREATE_REMINDER` → `REMINDERS`, `LONG_TERM_MEMORY_ACCESS`/`_WRITE` → `MEMORY`, `STEM_READ` → `STEM_VIEW` +
-`HOME_VIEW`, `STEM_ADMIN` → `ADMIN`; `STATUS_STEM` is dropped (everybody may ask for the status).
+`HOME_VIEW`, `STEM_ADMIN` → `ADMIN`; `STATUS_STEM` is dropped (every registered user may ask for the status).
 
 Unknown senders get a guest profile named after their chat name (`users.autoCreateGuests`). An administrator can
 ask Mirra to register a guest, add channels ("Die WhatsApp-Nummer 49176... gehört zu Anna"), merge two profiles

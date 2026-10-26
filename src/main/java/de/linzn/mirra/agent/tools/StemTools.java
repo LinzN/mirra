@@ -38,6 +38,7 @@ import java.util.*;
 
 import static de.linzn.mirra.agent.tools.Schema.*;
 import static de.linzn.mirra.agent.tools.SimpleTool.anyOf;
+import static de.linzn.mirra.agent.tools.SimpleTool.notGuest;
 import static de.linzn.mirra.identitySystem.AiPermissions.*;
 
 /**
@@ -57,7 +58,7 @@ public final class StemTools {
 
         tools.add(new SimpleTool("stem_status",
                 "Status of the STEM smart home system: version, uptime, number of plugins and failed health checks.",
-                Schema.empty(), chat -> true, (chat, args) -> {
+                Schema.empty(), notGuest(), (chat, args) -> {
             long seconds = api.system().getUptime().toSeconds();
             int errors = 0;
             for (HealthCheck check : api.health().getChecks()) {
