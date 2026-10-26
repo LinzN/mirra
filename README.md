@@ -230,9 +230,232 @@ On the first start the old identity tables are copied into the new tables in one
 
 | Old                                      | New                                   |
 |------------------------------------------|---------------------------------------|
+| `plugin_mirra_identity_user`             | `plugin_mirra_agent_user`             |
+| `plugin_mirra_identity_user_tokens`      | `plugin_mirra_agent_user_channel`     |
+| `plugin_mirra_identity_user_permissions` | `plugin_mirra_agent_user_permission`  |
+| `plugin_mirra_reminder` (active ones)    | `plugin_mirra_agent_reminder`         |
+
+Long term memory owners `identity:<name>` and `token:<channel>:<address>` become `user:<id>`; guests with
+memories get a guest profile. Duplicate names get a suffix, unknown permissions and channels are skipped and
+logged, old permission names are mapped to the new ones. The old tables are not changed and are no longer used;
+delete them once everything works.
+
+---
+
+## Tasks
+
+A task is an instruction in natural language plus a trigger. When it triggers, Mirra gets the instruction as if
+its owner had just written it, with the owner's permissions, carries it out with all her tools and sends the result
+to the owner. Anything Mirra can do in a chat can be planned. Examples:
+
+- "Schalte heute um 22 Uhr den 3D-Drucker aus" (time)
+- "Jeden Morgen um 7 Uhr: schick mir das Wetter und die Termine" (cron)
+- "Prüfe jede Stunde die Health-Checks und melde dich nur, wenn etwas fehlschlägt" (cron, silent if all is fine)
+- "Wenn die Außentemperatur unter 3 Grad fällt, schick mir eine Glätte-Warnung" (event with condition)
+- "Wenn ein Druck fertig ist, schalte den Drucker aus" (event)
+- "Wenn ein Backup fehlschlägt, starte es neu und sag mir Bescheid" (information block event)
+
+| Trigger | Parameters                         | Notes                                                    |
+|---------|------------------------------------|----------------------------------------------------------|
+| `time`  | `run_at` (local time)              | Once                                                     |
+| `cron`  | `cron` (5 fields)                  | Repeating                                                |
+| `event` | `event`, filters, `repeat`         | Once by default, every time with `repeat`                |
+
+| Event                                              | Source                                   | Filter                         |
+|----------------------------------------------------|------------------------------------------|--------------------------------|
+| `stem_event`                                       | Any event of any STEM plugin, by `event_name` | `device`/`match_value` in the event data, `condition` |
+| `mqtt`                                             | Any MQTT topic                           | `topic`, `match_value` in the payload, `condition` |
+| `information`                                      | Any new STEM information block           | `match_value` in title or text |
+| `print_finished`, `print_failed`, `print_cancelled` | 3D printers of home-devices             | `device` (part of the name)    |
+| `device_on`, `device_off`                          | Switches of home-devices (real changes only) | `device`                    |
+| `door_ring`                                        | Door bells of home-devices               | `device`                       |
+
+`stem_event` uses STEM's catch-all event delivery (STEM `b585c21` or newer): Mirra sees every event of every
+plugin, turns it into JSON (record components or getters, one level of nested objects) and keeps a catalog of
+the events seen with an example, which she reads with `list_event_types` to find the right event and fields.
+The catalog is stored in the STEM data store under `mirra-event-catalog`.
+
+A condition compares a field of the event data or JSON payload (dotted path, e.g.
+`environmentSensor.temperature`) with a value (`<`, `<=`, `>`, `>=`, `==`, `!=`, `contains`; numbers are compared
+as numbers). Tasks with a condition trigger when the condition becomes true, not on every event while it stays
+true. If a task should only report in some cases and none applies, Mirra answers `NO_REPORT` and nothing is sent.
+
+Tasks are stored in `plugin_mirra_agent_task` and armed again after a restart. Time tasks that were due while
+STEM was offline run one minute after the start if they are at most one hour late; older ones are skipped and the
+owner gets a message. For `mqtt` tasks, messages in the first seconds after subscribing (retained values) are
+ignored.
+
+---
+
+## Watchdog
+
+Every `autonomy.intervalMinutes` Mirra looks for new problems in STEM:
+
+- health checks with an `ERROR` result
+- `SEVERE`/`ERROR` entries in the STEM log since the last round (stack frames, frame lines, Mirra's own OpenAI
+  errors and texts in `autonomy.ignore` are skipped)
+
+If there are new problems, Mirra handles them in one turn on behalf of the approver, with the approver's
+permissions: she analyzes them with her tools (health checks, log, devices, console commands, the shell if the
+approver has `SHELL`). In mode `fix` she also fixes what is safe and reversible (run a check again, retry a job,
+reconnect, restart a service) and verifies the result; she never deletes data, shuts down or reboots machines,
+changes configuration or permissions, or contacts other people. In mode `report` she only analyzes. Then she sends
+a short report to the approver, or nothing if everything is harmless.
+
+The same problem (numbers and ids ignored) is handled at most once per `autonomy.cooldownMinutes`, and at most
+`autonomy.maxRunsPerDay` turns run per day. Nothing runs while OpenAI reports that the credits are used up.
+
+---
+
+## OpenAI credits
+
+- When OpenAI answers that the quota is used up (`insufficient_quota`) or the key is invalid, the approver gets a
+  message right away (and a STEM notification), at most every six hours. People chatting with Mirra get a short
+  "no credits" answer instead of a generic error.
+- Mirra counts requests and tokens per model and day (STEM data store `mirra-openai-usage`).
+- OpenAI has no API for the remaining prepaid balance. With an admin key (`openAI.adminKey`, created under
+  Organization → Admin keys) Mirra reads the costs from the Costs API and checks them daily (`billing.checkCron`):
+  - remaining credit = `billing.creditBalance` (balance on `billing.balanceDate`) minus the costs since then;
+    warning below `billing.warnBelow` USD. Update both values after topping up.
+  - monthly budget `billing.monthlyBudget`: warnings at 80 % and 100 %.
+- `openai_usage` shows tokens, costs, budget and remaining credit in the chat.
+
+---
+
+## Memory
+
+| Layer            | Scope                       | Storage                          | How it works                                                     |
+|------------------|-----------------------------|----------------------------------|------------------------------------------------------------------|
+| Chat history     | one chat (user token)       | `plugin_mirra_memory`            | The last `agent.historyMessages` messages are sent with each request |
+| Chat summary     | one chat                    | `plugin_mirra_agent_summary`     | When `memory.summaryThreshold` messages are not summarized yet, the older ones are merged into a running summary |
+| Long term memory | one person or the household | `plugin_mirra_agent_memory`      | Facts, preferences, people, events and plans with importance 1–5 and an embedding |
+
+After every answer a background job asks the memory model which lasting facts the exchange contains and
+adds, updates or deletes long term memories (`memory.autoExtract`); lasting personal data also goes into the
+user profile. Memories belong to the user profile (`user:<id>`), so what Niklas tells Mirra on WhatsApp is also
+known on Discord.
+Household facts are stored as `global` and are visible to everyone with `MEMORY`.
+
+For each message Mirra adds the most important memories of the person and the memories most similar to the
+message (cosine similarity of `text-embedding-3-small` vectors, keyword search as fallback) to the
+instructions, up to `memory.contextSize`. Near duplicates (similarity ≥ 0.92) are merged instead of stored
+twice.
+
+On the first start the entries of the old `plugin_mirra_longterm_memory` table are imported once as global
+facts (`memory.legacyImported` is set afterwards).
+
+---
+
+## Requirements
+
+| Requirement | Version                                                                                       |
+|-------------|-----------------------------------------------------------------------------------------------|
+| STEM        | `master` from 69b2e69 (command execution, catch-all events, log access), database module configured |
+| Plugins     | [home-devices](https://github.com/LinzN/home-devices), [weather](https://github.com/LinzN/weather), [gas-station](https://github.com/LinzN/gas-station) |
+| OpenAI      | API key with access to the Responses, Embeddings, Images and Audio API (transcription, speech) |
+| Discord     | Bot token with the **Message Content** intent (optional)                                      |
+| WhatsApp    | Evolution API v2 instance with RabbitMQ (optional), [evolution-api-java](https://github.com/LinzN/evolution-api-java) 0.0.5 |
+
+---
+
+## Installation
+
+1. Build the plugin with `mvn clean package` (or take the build from Jenkins).
+2. Copy `target/mirra.jar` into the `plugins` folder of STEM and the libraries from
+   `target/libraries` as `libraries.zip` (folder `libraries` inside) into `plugins/mirra/`.
+3. Start STEM once to create `plugins/mirra/config.yml` and the database tables, fill in the config and
+   restart STEM.
+4. Make yourself owner in the database (see [Database](#database)); existing identities and permissions are
+   migrated automatically (see [Users](#users)). Further permissions can be managed in the chat.
+
+---
+
+## Configuration (`config.yml`)
+
+| Key                                | Default                     | Description                                  |
+|------------------------------------|-----------------------------|----------------------------------------------|
+| `openAI.token`                     | `xxxx`                      | OpenAI API key                               |
+| `openAI.baseUrl`                   | `https://api.openai.com/v1` | API base URL (e.g. for a proxy)              |
+| `openAI.timeoutSeconds`            | `120`                       | Timeout of one request                       |
+| `default.model`                    | `mirra`                     | Name of the model configuration below        |
+| `default.identityName`             | `Niklas`                    | Name used as sender for STEM events          |
+| `model.<name>.textOpenAIModel`     | `gpt-4.1`                   | Chat model, e.g. `gpt-4.1`, `gpt-6-sol`      |
+| `model.<name>.imageOpenAIModel`    | `gpt-image-1`               | Image model, e.g. `gpt-image-1`, `gpt-image-2` |
+| `model.<name>.aiRoleDescription`   | `You are Mirra, ...`        | Personality of Mirra                         |
+| `model.<name>.memoryModel`         | text model                  | Model for memory extraction and summaries    |
+| `model.<name>.embeddingModel`      | `text-embedding-3-small`    | Embedding model of the long term memory      |
+| `model.<name>.transcriptionModel`  | `gpt-4o-mini-transcribe`    | Speech to text model for voice messages      |
+| `model.<name>.reasoningEffort`     | empty                       | Reasoning effort of reasoning models (e.g. `low`, `medium`, `high`), empty for the model default |
+| `agent.maxToolRounds`              | `10`                        | Tool rounds per message                      |
+| `agent.historyMessages`            | `16`                        | Chat messages sent with each request         |
+| `agent.webSearch`                  | `false`                     | Offer the OpenAI web search tool to registered users |
+| `agent.blockedCommands`            | `[stop, reboot]`            | Console commands Mirra must not run          |
+| `agent.commandTimeoutSeconds`      | `60`                        | Timeout of a console command                 |
+| `agent.scriptTimeoutSeconds`       | `120`                       | Timeout of a script                          |
+| `agent.socialStatus.enabled`       | `true`                      | Let Mirra choose a social status             |
+| `agent.socialStatus.cron`          | `0 14 * * *`                | When to choose a new status                  |
+| `agent.socialStatus.onStartup`     | `true`                      | Also choose one after start                  |
+| `attachments.enabled`              | `true`                      | Read files sent to Mirra                     |
+| `attachments.guests`               | `false`                     | Also read files of guests                    |
+| `attachments.maxSizeMB`            | `25`                        | Largest file Mirra reads (at most 50)        |
+| `attachments.keepMinutes`          | `30`                        | How long files are sent again for follow-up questions, `0` to disable |
+| `voice.enabled`                    | `true`                      | Allow voice messages from Mirra              |
+| `voice.replyToVoice`               | `false`                     | Answer voice messages with a voice message   |
+| `voice.model`                      | `gpt-4o-mini-tts`           | Text to speech model                         |
+| `voice.voice`                      | `nova`                      | Voice, e.g. `nova`, `coral`, `shimmer`       |
+| `voice.instructions`               | `Speak in German, ...`      | How the voice should sound                   |
+| `agent.shell.enabled`              | `true`                      | Offer `shell_run` to users with `SHELL`      |
+| `agent.shell.sshUser`              | `root`                      | Default SSH user                             |
+| `agent.shell.sshPort`              | `22`                        | Default SSH port                             |
+| `agent.shell.timeoutSeconds`       | `120`                       | Default timeout of a shell command           |
+| `agent.shell.allowedHosts`         | `[]`                        | SSH hosts Mirra may use; empty allows all    |
+| `users.autoCreateGuests`           | `true`                      | Create a guest profile for unknown senders   |
+| `users.requireApproval`            | `true`                      | New contacts need the approval of the approver |
+| `users.approver`                   | `default.identityName`      | Profile that decides about new contacts and gets alerts and watchdog reports |
+| `users.pendingMessage`             | `Hi! 👋 Ich bin Mirra ...`  | Answer to new contacts while pending         |
+| `users.approvedMessage`            | `Du bist freigeschaltet ✅ ...` | Message after the approval               |
+| `users.deniedMessage`              | empty                       | Message after a denial; empty sends nothing  |
+| `openAI.adminKey`                  | empty                       | OpenAI admin key for the Costs API (optional) |
+| `billing.creditBalance`            | `0`                         | Prepaid balance in USD on `billing.balanceDate`, `0` = unknown |
+| `billing.balanceDate`              | empty                       | Date of that balance, `yyyy-MM-dd`           |
+| `billing.monthlyBudget`            | `0`                         | Monthly budget in USD, `0` = none            |
+| `billing.warnBelow`                | `5`                         | Warn when the estimated credit is below this |
+| `billing.checkCron`                | `50 8 * * *`                | Daily credit check                           |
+| `autonomy.enabled`                 | `true`                      | Run the watchdog                             |
+| `autonomy.mode`                    | `fix`                       | `fix` (act and report) or `report` (only analyze) |
+| `autonomy.intervalMinutes`         | `5`                         | How often to look for new problems           |
+| `autonomy.cooldownMinutes`         | `360`                       | Same problem at most once in this time       |
+| `autonomy.maxRunsPerDay`           | `12`                        | Watchdog turns per day                       |
+| `autonomy.ignore`                  | `[]`                        | Log texts to ignore (lower case)             |
+| `memory.autoExtract`               | `true`                      | Extract long term memories after each message |
+| `memory.summaryThreshold`          | `40`                        | Unsummarized messages that trigger a summary |
+| `memory.contextSize`               | `12`                        | Long term memories added to each request     |
+| `discord.token`                    | `xxxx`                      | Bot token; Discord is not started without it |
+| `discord.defaultUID`               | `xxxx`                      | Discord user that receives notifications     |
+| `whatsapp.defaultJID`              | `xxxx`                      | WhatsApp chat that receives notifications    |
+| `evolutionApi.hostname`            | `http://localhost:8080`     | URL of the Evolution API                     |
+| `evolutionApi.instance`            | `MirraAPI`                  | Instance name                                |
+| `evolutionApi.apiKey`              | `xxxxxxxxxxxxxxxxxxxxxx`    | API key of the Evolution API                 |
+| `rabbitMQ.hostname`                | `127.0.0.1`                 | RabbitMQ host for incoming messages          |
+| `rabbitMQ.username`                | `mirra`                     | RabbitMQ user                                |
+| `rabbitMQ.password`                | `password`                  | RabbitMQ password                            |
+| `rabbitMQ.virtualHost`             | `/`                         | RabbitMQ virtual host                        |
+
+Existing configurations keep working; new keys are added with their defaults on start. The weather tool uses
+the API key of the [weather](https://github.com/LinzN/weather) plugin.
+
+---
+
+## Database
+
+All tables are created automatically if they do not exist (MySQL/MariaDB); columns added in later versions are
+added to existing tables.
+
+| Table                                    | Columns                                                                      |
+|------------------------------------------|------------------------------------------------------------------------------|
 | `plugin_mirra_agent_user`                | `id`, `name`, `guest`, `access` (`APPROVED`, `PENDING`, `DENIED`), `full_name`, `nickname`, `birthday`, `language`, `timezone`, `location`, `preferred_channel`, `notes`, `created`, `updated`, `last_seen` |
 | `plugin_mirra_agent_user_channel`        | `id`, `user_id`, `source` (`DISCORD`, `WHATSAPP`), `address`, `display_name`, `created`, `last_seen` |
-| `plugin_mirra_agent_user_permission`     | `user_id`, `permission` (see [Tools](#tools))                                |
+| `plugin_mirra_agent_user_permission`     | `user_id`, `permission` (see [Permissions](#permissions-in-the-chat))        |
 | `plugin_mirra_agent_user_attribute`      | `user_id`, `attr_key`, `attr_value`, `source` (`user`, `admin`, `auto`), `updated` |
 | `plugin_mirra_agent_reminder`            | `id`, `user_id`, `channel_id`, `content`, `remind_at`, `active`, `created`   |
 | `plugin_mirra_memory`                    | `id`, `model`, `identity`, `role`, `content`, `date`, `function_name`, `function_json` (chat history per channel) |
@@ -241,8 +464,8 @@ On the first start the old identity tables are copied into the new tables in one
 | `plugin_mirra_agent_memory`              | `id`, `owner` (`user:<id>`, `global`), `category`, `content`, `importance`, `embedding`, `embedding_model`, `source`, `created`, `updated`, `last_used`, `use_count` |
 | `plugin_mirra_longterm_memory`           | `id`, `memory_data`, `date` (old memory, only read for the one-time import)  |
 
-`address` is the Discord user id or the WhatsApp JID. Example to make yourself owner (all permissions) in the database
-(Mirra picks it up after a restart; through Mirra it applies immediately):
+`address` is the Discord user id or the WhatsApp JID. Make yourself owner (all permissions) in the database
+(Mirra picks it up after a restart; changes through Mirra apply immediately):
 
 ```sql
 INSERT INTO plugin_mirra_agent_user_permission (user_id, permission)
