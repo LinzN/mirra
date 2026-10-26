@@ -98,6 +98,27 @@ public class DatabaseMemoryRepository implements MemoryRepository {
               covered_until BIGINT NOT NULL,
               updated DATETIME NOT NULL,
               PRIMARY KEY (model, chat_key)
+            ) DEFAULT CHARSET=utf8mb4""",
+            """
+            CREATE TABLE IF NOT EXISTS plugin_mirra_agent_task (
+              id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+              owner_source VARCHAR(32) NOT NULL,
+              owner_token VARCHAR(191) NOT NULL,
+              owner_name VARCHAR(191) NOT NULL,
+              instruction TEXT NOT NULL,
+              trigger_type VARCHAR(32) NOT NULL,
+              run_at DATETIME NULL,
+              cron VARCHAR(64) NULL,
+              event_type VARCHAR(32) NULL,
+              device VARCHAR(191) NULL,
+              match_value VARCHAR(512) NULL,
+              topic VARCHAR(255) NULL,
+              repeating TINYINT NOT NULL DEFAULT 0,
+              active TINYINT NOT NULL DEFAULT 1,
+              created DATETIME NOT NULL,
+              last_run DATETIME NULL,
+              run_count INT NOT NULL DEFAULT 0,
+              INDEX idx_mirra_agent_task_active (active)
             ) DEFAULT CHARSET=utf8mb4"""
     };
 

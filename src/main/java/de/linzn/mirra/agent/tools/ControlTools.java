@@ -14,12 +14,9 @@ package de.linzn.mirra.agent.tools;
 
 import de.linzn.mirra.MirraConfig;
 import de.linzn.mirra.MirraPlugin;
-import de.linzn.mirra.identitySystem.UserToken;
 import de.linzn.stem.api.StemApi;
 import de.linzn.stem.api.cloud.CloudFileHandle;
-import de.linzn.stem.api.command.CommandResult;
 import de.linzn.stem.api.mqtt.MqttSubscription;
-import de.linzn.stem.api.scheduler.ScheduledTask;
 import de.linzn.stem.modules.databaseModule.DataContainer;
 import de.linzn.stem.modules.informationModule.InformationBlock;
 import de.linzn.stem.utils.ProcessOutput;
@@ -32,12 +29,7 @@ import java.nio.file.Path;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static de.linzn.mirra.agent.tools.Schema.*;
@@ -45,25 +37,19 @@ import static de.linzn.mirra.agent.tools.SimpleTool.anyOf;
 import static de.linzn.mirra.identitySystem.AiPermissions.*;
 
 /**
- * Deep control of STEM: information blocks, cloud, data store, database, MQTT, scheduled commands and the shell.
+ * Deep control of STEM: information blocks, cloud, data store, database, MQTT and the shell.
  */
 public final class ControlTools {
 
-    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final int MAX_SQL_ROWS = 200;
     private static final int MAX_OUTPUT_LINES = 300;
-
-    private record PlannedCommand(ScheduledTask task, String commandLine, LocalDateTime runAt, String requestedBy) {
-    }
 
     private ControlTools() {
     }
 
     public static List<AgentTool> create(MirraPlugin plugin, MirraConfig config) {
         StemApi api = plugin.getStemApi();
-        ZoneId zone = api.system().getZone();
         List<AgentTool> tools = new ArrayList<>();
-        Map<Long, PlannedCommand> planned = new ConcurrentHashMap<>();
 
         /* information blocks */
         tools.add(new SimpleTool("stem_remove_information",
@@ -212,78 +198,6 @@ public final class ControlTools {
             synchronized (messages) {
                 return new JSONObject().put("messages", new JSONArray(messages)).put("connected", api.mqtt().isConnected());
             }
-        }));
-
-        /* scheduled console commands */
-        tools.add(new SimpleTool("stem_schedule_command",
-                "Run a STEM console command later, e.g. 'in 2 hours' or 'at 23:00'. The person gets the result as message. "
-                        + "Planned commands are lost when STEM restarts.",
-                Schema.object()
-                        .prop("command_line", string("command and arguments"))
-                        .prop("delay_minutes", nullable(integer("run after this many minutes")))
-                        .prop("run_at", nullable(string("run at this local time, format yyyy-MM-dd HH:mm")))
-                        .build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
-            String commandLine = requireString(args, "command_line");
-            String commandName = commandLine.split("\\s+")[0].toLowerCase(Locale.ROOT);
-            if (config.blockedCommands.contains(commandName)) {
-                throw new IllegalArgumentException("The command '" + commandName + "' is blocked for Mirra");
-            }
-            Integer delay = optInt(args, "delay_minutes");
-            String at = optString(args, "run_at");
-            LocalDateTime now = LocalDateTime.now(zone);
-            LocalDateTime runAt;
-            if (delay != null && at == null) {
-                runAt = now.plusMinutes(Math.max(0, delay));
-            } else if (at != null && delay == null) {
-                runAt = LocalDateTime.parse(at, TIME_FORMAT);
-            } else {
-                throw new IllegalArgumentException("Give exactly one of delay_minutes or run_at");
-            }
-            long millis = Math.max(0, Duration.between(now, runAt).toMillis());
-            UserToken requester = chat.userToken();
-            String requestedBy = chat.name();
-            long[] id = new long[1];
-            ScheduledTask task = api.scheduler().runLater(() -> {
-                planned.remove(id[0]);
-                CommandResult result = api.commands().execute(commandLine, Duration.ofSeconds(config.commandTimeoutSeconds));
-                plugin.getPluginLogger().info("Scheduled command '" + commandLine + "' for " + requestedBy + " finished: " + result.success());
-                List<String> output = result.output();
-                String tail = String.join("\n", output.subList(Math.max(0, output.size() - 20), output.size()));
-                String message = "⏰ Geplanter Befehl '" + commandLine + "' " + (result.success() ? "ausgeführt" : "fehlgeschlagen")
-                        + (tail.isBlank() ? "" : ":\n" + tail);
-                try {
-                    if (plugin.getMessenger().canSend(requester)) {
-                        plugin.getMessenger().sendText(requester, message);
-                        plugin.getAgent().recordOutgoing(requester.getName(), message);
-                    }
-                } catch (Exception e) {
-                    plugin.getPluginLogger().warning("Could not report scheduled command: " + e.getMessage());
-                }
-            }, millis, TimeUnit.MILLISECONDS);
-            id[0] = task.getTaskId();
-            planned.put(task.getTaskId(), new PlannedCommand(task, commandLine, runAt, requestedBy));
-            return new JSONObject().put("task_id", task.getTaskId()).put("run_at", runAt.format(TIME_FORMAT));
-        }));
-
-        tools.add(new SimpleTool("stem_scheduled_commands",
-                "List the commands planned with stem_schedule_command, or cancel one.",
-                Schema.object().prop("cancel_task_id", nullable(integer("id of the task to cancel; null to only list"))).build(),
-                anyOf(STEM_ADMIN), (chat, args) -> {
-            Integer cancel = optInt(args, "cancel_task_id");
-            JSONObject result = new JSONObject();
-            if (cancel != null) {
-                PlannedCommand command = planned.remove(cancel.longValue());
-                if (command == null) {
-                    throw new IllegalArgumentException("No planned command with id " + cancel);
-                }
-                command.task().cancel();
-                result.put("cancelled", command.commandLine());
-            }
-            JSONArray list = new JSONArray();
-            planned.forEach((taskId, command) -> list.put(new JSONObject().put("task_id", taskId).put("command", command.commandLine())
-                    .put("run_at", command.runAt().format(TIME_FORMAT)).put("requested_by", command.requestedBy())));
-            return result.put("planned", list);
         }));
 
         /* shell */

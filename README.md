@@ -23,6 +23,8 @@ across chats and turns STEM system events into readable messages.
 - **Sending**: images, files Mirra writes herself, files of the server and voice messages into the chat;
   messages, files and voice messages to other registered users on request
 - **Voice**: text to speech with an OpenAI voice, optionally as answer to every voice message
+- **Tasks**: Mirra plans tasks for later, on a schedule or on events (e.g. "switch the 3D printer off when the
+  print is finished") and carries them out herself (see [Tasks](#tasks))
 - **Shell**: commands on the STEM server and via SSH on other machines (separate `SHELL` permission)
 - **Memory** in three layers (see [Memory](#memory))
 - **Reminders**: due reminders are sent to the user on Discord or WhatsApp
@@ -81,8 +83,9 @@ model for a final answer without tools.
 | `stem_data_set`           | `STEM_ADMIN`                                 | Writes a JSON container of the STEM data store      |
 | `stem_sql`                | `STEM_ADMIN`                                 | Runs an SQL statement on the STEM database (max. 200 rows) |
 | `stem_mqtt_read`          | `STEM_READ`                                  | Listens to MQTT topics for a few seconds            |
-| `stem_schedule_command`   | `STEM_ADMIN`                                 | Runs a console command later and reports the result |
-| `stem_scheduled_commands` | `STEM_ADMIN`                                 | Lists or cancels planned commands                   |
+| `create_task`             | registered users                             | Plans a task at a time, on a cron schedule or on an event |
+| `list_tasks`              | registered users (all users: `STEM_ADMIN`)   | Planned tasks                                       |
+| `cancel_task`             | owner or `STEM_ADMIN`                        | Cancels a planned task                              |
 | `shell_run`               | `SHELL`                                      | Shell command on the STEM server or via SSH         |
 | `home_list_devices`       | `STEM_READ`                                  | Devices of home-devices with state                  |
 | `home_get_device`         | `STEM_READ`                                  | Details of one device                               |
@@ -106,8 +109,7 @@ model for a final answer without tools.
 who may run any command on the server. SSH uses the key based login of the user STEM runs as (`BatchMode`, no
 password prompts). Guests only have `STATUS_STEM`. Console commands listed in `agent.blockedCommands` are
 never run. Messages Mirra sends to other users are added to their chat history, so she knows the context
-when they answer. Commands planned with `stem_schedule_command` are kept in memory only and are lost on a
-restart.
+when they answer.
 
 ---
 
@@ -130,6 +132,34 @@ the transcripts of voice messages, never the file content. Guests cannot send fi
 
 WhatsApp media is loaded through the Evolution API endpoint `getBase64FromMediaMessage`, or taken from the
 webhook directly if "Webhook base64" is enabled for the instance.
+
+---
+
+## Tasks
+
+A task is an instruction in natural language plus a trigger. When it triggers, Mirra gets the instruction as if
+its owner had just written it, with the owner's permissions, carries it out with her tools and sends the result
+to the owner. Examples: "Schalte heute um 22 Uhr den 3D-Drucker aus", "Wenn der Druck auf dem U1 fertig ist,
+schalte den Drucker aus", "Jeden Morgen um 7 Uhr: schick mir das Wetter".
+
+| Trigger | Parameters                         | Notes                                                    |
+|---------|------------------------------------|----------------------------------------------------------|
+| `time`  | `run_at` (local time)              | Once                                                     |
+| `cron`  | `cron` (5 fields)                  | Repeating                                                |
+| `event` | `event`, filters, `repeat`         | Once by default, every time with `repeat`                |
+
+| Event                                              | Source                                   | Filter                         |
+|----------------------------------------------------|------------------------------------------|--------------------------------|
+| `print_finished`, `print_failed`, `print_cancelled` | Snapmaker and Ankermake printers of home-devices | `device` (part of the name) |
+| `device_on`, `device_off`                          | Switches of home-devices (real changes only) | `device`                    |
+| `door_ring`                                        | Door bells of home-devices               | `device`                       |
+| `information`                                      | Any new STEM information block           | `match_value` in title or text |
+| `mqtt`                                             | Any MQTT topic                           | `topic`, `match_value` in the payload |
+
+Tasks are stored in `plugin_mirra_agent_task` and armed again after a restart. Time tasks that were due while
+STEM was offline run one minute after the start if they are at most one hour late; older ones are skipped and the
+owner gets a message. For `mqtt` tasks, messages in the first seconds after subscribing (retained values) are
+ignored.
 
 ---
 
@@ -248,6 +278,7 @@ All tables are created automatically if they do not exist (MySQL/MariaDB).
 | `plugin_mirra_identity_user_permissions` | `identity_user_id`, `permission` (see [Tools](#tools))                       |
 | `plugin_mirra_memory`                    | `id`, `model`, `identity`, `role`, `content`, `date`, `function_name`, `function_json` |
 | `plugin_mirra_agent_summary`             | `model`, `chat_key`, `summary`, `covered_until`, `updated`                   |
+| `plugin_mirra_agent_task`                | `id`, `owner_source`, `owner_token`, `owner_name`, `instruction`, `trigger_type`, `run_at`, `cron`, `event_type`, `device`, `match_value`, `topic`, `repeating`, `active`, `created`, `last_run`, `run_count` |
 | `plugin_mirra_agent_memory`              | `id`, `owner`, `category`, `content`, `importance`, `embedding`, `embedding_model`, `source`, `created`, `updated`, `last_used`, `use_count` |
 | `plugin_mirra_longterm_memory`           | `id`, `memory_data`, `date` (old memory, only read for the one-time import)  |
 | `plugin_mirra_reminder`                  | `id`, `user_token_id`, `reminder_content`, `reminder_datetime`, `active`, `created` |

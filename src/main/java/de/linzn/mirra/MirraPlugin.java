@@ -34,6 +34,10 @@ import de.linzn.mirra.agent.openai.OpenAIClient;
 import de.linzn.mirra.agent.tools.AssistantTools;
 import de.linzn.mirra.agent.tools.ControlTools;
 import de.linzn.mirra.agent.tools.MessagingTools;
+import de.linzn.mirra.agent.tools.TaskTools;
+import de.linzn.mirra.agent.tasks.TaskEventListener;
+import de.linzn.mirra.agent.tasks.TaskManager;
+import de.linzn.mirra.agent.tasks.TaskRepository;
 import de.linzn.mirra.agent.tools.HomeTools;
 import de.linzn.mirra.agent.tools.StemTools;
 import de.linzn.mirra.agent.tools.ToolRegistry;
@@ -69,6 +73,7 @@ public class MirraPlugin extends STEMPlugin {
     private ImageService imageService;
     private AttachmentProcessor attachmentProcessor;
     private ChatMessenger messenger;
+    private TaskManager taskManager;
 
     public MirraPlugin() {
         mirraPlugin = this;
@@ -118,6 +123,7 @@ public class MirraPlugin extends STEMPlugin {
         tools.registerAll(AssistantTools.create(this));
         tools.registerAll(MessagingTools.create(this));
         tools.registerAll(ControlTools.create(this, this.mirraConfig));
+        tools.registerAll(TaskTools.create(this));
         this.agent = new MirraAgent(client, this.mirraConfig, tools, repository, memory, keeper, this.getPluginLogger(),
                 task -> this.getStemApi().scheduler().runAsync(task), this.getStemApi().system().getZone(), this.attachmentProcessor);
         this.getPluginLogger().info("Mirra agent ready with " + tools.getTools().size() + " tools, model " + this.mirraConfig.textModel);
@@ -129,12 +135,18 @@ public class MirraPlugin extends STEMPlugin {
         /* everything registered through the API is removed again on disable */
         this.getStemApi().events().register(new StemEventListener(this));
         this.getStemApi().events().register(new MirraReminderListener(this));
+        this.taskManager = new TaskManager(this, new TaskRepository(this.getStemApi().data(), this.getPluginLogger()));
+        this.taskManager.start();
+        this.getStemApi().events().register(new TaskEventListener(this.taskManager));
         this.registerAiTextEngine();
         this.scheduleSocialStatus();
     }
 
     @Override
     public void onDisable() {
+        if (this.taskManager != null) {
+            this.taskManager.stop();
+        }
         if (this.discordManager != null) {
             this.discordManager.shutdown();
         }
@@ -225,6 +237,13 @@ public class MirraPlugin extends STEMPlugin {
 
     public MirraAgent getAgent() {
         return agent;
+    }
+
+    /**
+     * @return the task manager, null until Mirra is started
+     */
+    public TaskManager getTaskManager() {
+        return taskManager;
     }
 
     public ChatMessenger getMessenger() {
