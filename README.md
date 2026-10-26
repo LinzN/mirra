@@ -14,7 +14,7 @@ See [docs/security/SECURITY.md](docs/security/SECURITY.md) for permissions, data
 
 ## Features
 
-- **Chat** on Discord (private messages) and WhatsApp (via [Evolution API](https://github.com/LinzN/evolution-api-java))
+- **Chat** on Discord (private messages) and WhatsApp private chats (via [Evolution API](https://github.com/LinzN/evolution-api-java)); WhatsApp groups and status updates are ignored
 - **Agent loop**: the model can call several tools in a row (up to `agent.maxToolRounds`) before it answers
 - **STEM control**: status, plugins, health checks, information blocks, notifications, console commands,
   scripts, MQTT, devices and smart home profile, gated by permissions
@@ -88,8 +88,8 @@ model for a final answer without tools.
 | `stem_cloud_share`        | `ADMIN`                                      | Public link for a file in the STEM cloud            |
 | `stem_cloud_upload`       | `ADMIN`                                      | Stores a text file (or a server file with `SHELL`) in the cloud |
 | `stem_data_get`           | `STEM_VIEW`                                  | Reads a JSON container of the STEM data store       |
-| `stem_data_set`           | `ADMIN`                                      | Writes a JSON container of the STEM data store      |
-| `stem_sql`                | `ADMIN`                                      | Runs an SQL statement on the STEM database (max. 200 rows) |
+| `stem_data_set`           | `OWNER`                                      | Writes a JSON container of the STEM data store      |
+| `stem_sql`                | `OWNER`                                      | Runs an SQL statement on the STEM database (max. 200 rows) |
 | `stem_mqtt_read`          | `STEM_VIEW`                                  | Listens to MQTT topics for a few seconds            |
 | `list_users`              | `STEM_VIEW`                                  | User profiles and their channels (guests optional)  |
 | `get_user_profile`        | own profile; others `STEM_VIEW`              | Profile fields, attributes, channels, permissions   |

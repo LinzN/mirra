@@ -130,18 +130,18 @@ public final class ControlTools {
                         .prop("key", string("key of the container"))
                         .prop("json", string("JSON object as text"))
                         .build(),
-                anyOf(ADMIN), (chat, args) -> {
+                anyOf(OWNER), (chat, args) -> {
             api.data().set(requireString(args, "key"), new JSONObject(requireString(args, "json")));
             return new JSONObject().put("saved", true);
         }));
 
         /* database */
         tools.add(new SimpleTool("stem_sql",
-                "Run one SQL statement on the STEM database (MySQL/MariaDB). SELECT returns up to " + MAX_SQL_ROWS + " rows, "
+                "Run one SQL statement on the STEM database (MySQL/MariaDB); owners only. SELECT returns up to " + MAX_SQL_ROWS + " rows, "
                         + "other statements return the number of changed rows. Use SHOW TABLES and DESCRIBE to explore. "
                         + "Confirm with the person before changing or deleting data.",
                 Schema.object().prop("query", string("SQL statement")).build(),
-                anyOf(ADMIN), (chat, args) -> {
+                anyOf(OWNER), (chat, args) -> {
             String query = requireString(args, "query");
             plugin.getPluginLogger().info("SQL by " + chat.name() + ": " + query);
             return api.data().withConnection(connection -> {

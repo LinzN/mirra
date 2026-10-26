@@ -54,7 +54,8 @@ public class OnNewChatMessageListener {
     @EventSettings(priority = EventPriority.NORMAL)
     public void onNewMessage(NewMessageEvent event) {
         TextMessage textMessage = event.textMessage();
-        if (textMessage == null || textMessage.fromMe() || textMessage.isBroadcast()) {
+        /* only private chats: status updates and group chats are ignored */
+        if (textMessage == null || textMessage.fromMe() || textMessage.isBroadcast() || textMessage.isGroup()) {
             return;
         }
         JidClient senderJid = textMessage.remoteClientId();

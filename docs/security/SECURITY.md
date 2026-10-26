@@ -45,7 +45,7 @@ Besides chats, Mirra also acts on her own:
 
 | Boundary | Trusted side | Untrusted / semi-trusted side |
 |---|---|---|
-| Chat platforms | Platform identity (Discord user id, WhatsApp JID) as delivered by Discord / Evolution API | Message content, file content, display names |
+| Chat platforms | Platform identity (Discord user id, WhatsApp JID) as delivered by Discord / Evolution API; only private chats (Discord DMs, WhatsApp 1:1 chats) | Message content, file content, display names |
 | Evolution API / RabbitMQ | Messages on the RabbitMQ queues are taken as genuine WhatsApp messages | Anyone who can publish to the queues |
 | OpenAI | Tool calls are executed as requested by the model, within the permissions of the current person | Model output (can be influenced by prompt injection) |
 | STEM | STEM API, database, MQTT broker, cloud | Data coming from devices, MQTT payloads, log lines, health check texts |
@@ -112,7 +112,8 @@ Protections in the code:
 | STEM read | `stem_status` | registered user |
 | | `stem_list_plugins`, `stem_health_checks`, `stem_information_blocks`, `stem_notifications`, `stem_list_commands`, `stem_data_get`, `stem_mqtt_read`, `stem_read_log`, `list_event_types`, `list_users` | `STEM_VIEW` |
 | STEM control | `stem_run_command`, `stem_run_script`, `stem_run_health_checks`, `stem_mqtt_publish`, `stem_push_notification`, `stem_show_information`, `stem_remove_information` | `ADMIN` |
-| | `stem_data_set`, `stem_sql`, `stem_cloud_share`, `stem_cloud_upload` | `ADMIN` (server files: `SHELL`) |
+| | `stem_cloud_share`, `stem_cloud_upload` | `ADMIN` (server files: `SHELL`) |
+| | `stem_sql`, `stem_data_set` | `OWNER` |
 | | `watchdog_status` | `ADMIN` |
 | Shell | `shell_run` (local or SSH) | `SHELL` and `agent.shell.enabled` |
 | Smart home | `home_list_devices`, `home_get_device`, `home_get_lights`, `home_get_profile` | `HOME_VIEW` |
@@ -142,7 +143,7 @@ Protections in the code:
 | Console commands | Any STEM console command with output | `agent.blockedCommands` (default `stop`, `reboot`), timeout |
 | Scripts | Any script of the STEM script engine | Timeout |
 | Shell / SSH | Any command as the STEM OS user, locally and on every host the STEM SSH keys reach | `SHELL` permission, `BatchMode` (no passwords), host/user validation, optional `agent.shell.allowedHosts`, timeout, output limit, every command logged |
-| Database | Any SQL statement on the STEM database, including Mirra's own tables | `ADMIN`, 30 s query timeout, 200 rows, every statement logged |
+| Database | Any SQL statement on the STEM database, including Mirra's own tables | `OWNER` only, 30 s query timeout, 200 rows, every statement logged |
 | MQTT | Publish to any topic (devices, bridges) | `ADMIN` |
 | Smart home | Switch every device, change thermostats, change the smart home profile | `HOME_CONTROL` |
 | Messaging | Send texts, files and voice messages to every registered user | `ADMIN`; messages are added to the receiver's chat history |
@@ -181,11 +182,11 @@ Likelihood and impact: **L** low, **M** medium, **H** high. Residual risk after 
 |---|---|---|---|---|---|
 | R1 | **Prompt injection through data**: text in files, web pages, log lines, health check messages, MQTT payloads, device names or event data makes the model call tools the person did not ask for | M | H | Tools limited to the permissions of the current person; owner actions need an owner message; system rules ask for confirmation of critical actions | **High** for owners and the watchdog (shell, SQL), medium for others |
 | R2 | **Watchdog acts on injected log content** with the approver's permissions (incl. `SHELL` for an owner) | M | H | New-problem detection, cooldown, daily limit, rules forbid destructive actions, report to the approver | **High** while the approver has `SHELL` and `autonomy.mode: fix` |
-| R3 | **Privilege escalation of `ADMIN` to `OWNER` or `SHELL` via `stem_sql`** (e.g. inserting a permission row) or console commands | M | H | Statements are logged | **High**: `ADMIN` must be treated as nearly equal to `OWNER` |
+| R3 | **Privilege escalation of `ADMIN` to `OWNER` or `SHELL`** by writing Mirra's tables | L | H | `stem_sql` and `stem_data_set` are owner-only; `OWNER` cannot be granted through Mirra; `SHELL` only by `SHELL` holders | Low; indirect paths through STEM console commands or scripts of other plugins depend on what they allow |
 | R4 | **Server-side request forgery** with `send_file` `url`: any registered user can let Mirra fetch an internal URL (router, NAS, admin interfaces) and send the response to themselves | M | M | Only http/https; registered users only | **Medium** |
 | R5 | **Forged WhatsApp messages** by anyone who can publish to the Evolution API RabbitMQ queues or call its webhook as the owner's JID | L | H | Credentials of RabbitMQ / Evolution API | Depends on network exposure of RabbitMQ and Evolution API |
 | R6 | **Compromise of a Discord or WhatsApp account** of an owner or admin | L | H | Identity bound to platform ids | **High impact** if it happens; no second factor |
-| R7 | **WhatsApp group chats**: a group is treated as one chat; once approved, every member writes with that profile | L | M | Approval of unknown chats; groups get no permissions by default | Low–medium; groups are not filtered explicitly |
+| R7 | **WhatsApp group chats**: a group would be treated as one chat | L | M | Group chats (`@g.us`) and status updates are ignored | Low |
 | R8 | **Harmful shell command by the model** (wrong host, destructive command) | M | H | `SHELL` separate from `ADMIN`, rules to ask first, timeout, log, optional host allowlist (empty = all hosts) | **Medium–high** |
 | R9 | **Unwanted smart home actions** (heating, sockets with devices attached) from misunderstood requests | M | M | Permission levels, rules to ask before actions outside the request | Medium |
 | R10 | **Memory poisoning**: a user stores false household facts or profile data that influence later answers | M | L | Household facts need `MEMORY`; profiles editable only by their owner or `ADMIN` | Low |
@@ -200,13 +201,12 @@ Likelihood and impact: **L** low, **M** medium, **H** high. Residual risk after 
 
 ### Highest risks
 
-1. **R1/R2 – prompt injection, especially through the watchdog.** Log lines and health check texts can contain
-   text controlled by devices or external systems. The watchdog runs with the approver's permissions; for an owner
+1. **R1/R2 – prompt injection, especially through the watchdog.** Mirra reads the log from STEM's in-memory
+   buffer (not from the log file), but the risk is the content: log lines and health check texts can contain text
+   controlled by devices or external systems (device names, error messages of remote hosts, MQTT payloads). The watchdog runs with the approver's permissions; for an owner
    this includes the shell.
-2. **R3 – `ADMIN` can reach `OWNER` and `SHELL` through `stem_sql`** (and possibly console commands). The owner-only
-   protections are only effective against administrators if `ADMIN` cannot write Mirra's tables.
-3. **R4 – SSRF** through `send_file` with a URL for every registered user.
-4. **R8 – shell commands chosen by the model** without a command allowlist.
+2. **R4 – SSRF** through `send_file` with a URL for every registered user.
+3. **R8 – shell commands chosen by the model** without a command allowlist.
 
 ---
 
@@ -216,8 +216,8 @@ Ordered by benefit:
 
 1. **Limit the watchdog.** Use `autonomy.mode: report`, or set `users.approver` to a profile without `SHELL`, so
    automatic runs cannot use the shell. Add noisy or externally controlled log sources to `autonomy.ignore`.
-2. **Give `ADMIN` only to people you would also give `OWNER`.** Alternatively restrict `stem_sql` and
-   `stem_data_set` to `OWNER` (code change).
+2. **Give `ADMIN` only to trusted people.** `stem_sql` and `stem_data_set` are owner-only, but administrators
+   can still run console commands and scripts; check which of them could change Mirra's tables indirectly.
 3. **Restrict `send_file` URLs** to `ADMIN`, or block private and local address ranges (code change).
 4. **Set `agent.shell.allowedHosts`** to the hosts Mirra really needs, and give the STEM SSH key only the access it
    needs on those hosts (dedicated user, `sudo` rules for specific commands instead of `root`).
@@ -227,9 +227,8 @@ Ordered by benefit:
    credentials, no public management ports.
 7. **Secure the accounts** of owners and admins on Discord and WhatsApp with two-factor authentication and
    WhatsApp registration lock.
-8. **Ignore WhatsApp group chats** explicitly if they are not needed (code change: skip `@g.us`).
-9. **Protect `config.yml`**: readable only by the STEM user; rotate the OpenAI key if it may have leaked.
-10. **Review regularly**: `list_users` / `list_permissions` with holders, `list_tasks` for all users,
+8. **Protect `config.yml`**: readable only by the STEM user; rotate the OpenAI key if it may have leaked.
+9. **Review regularly**: `list_users` / `list_permissions` with holders, `list_tasks` for all users,
     the log lines `Shell by`, `SQL by`, `changed permissions of`, `Owner action`.
 
 ---
