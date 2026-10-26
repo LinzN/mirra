@@ -285,7 +285,7 @@ public class MirraPlugin extends STEMPlugin {
         if (answer == null || answer.isBlank()) {
             return;
         }
-        if (incomingVoice && this.mirraConfig.voiceReplyToVoice && this.mirraConfig.voiceEnabled) {
+        if (incomingVoice && !chat.isGuest() && this.mirraConfig.voiceReplyToVoice && this.mirraConfig.voiceEnabled) {
             try {
                 this.messenger.sendVoice(chat.userToken(), answer);
                 return;
