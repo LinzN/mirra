@@ -72,12 +72,7 @@ public final class MirraConfig {
     public final String approvedMessage;
     public final String deniedMessage;
 
-    public final String openAIAdminKey;
-    public final double billingCreditBalance;
-    public final String billingBalanceDate;
-    public final double billingMonthlyBudget;
-    public final double billingWarnBelow;
-    public final String billingCheckCron;
+    public final String pausedMessage;
 
     public final boolean autonomyEnabled;
     public final boolean autonomyMayFix;
@@ -143,12 +138,8 @@ public final class MirraConfig {
         this.approvedMessage = string(config, "users.approvedMessage", "Du bist freigeschaltet ✅ Ab jetzt kannst du mit mir schreiben.");
         this.deniedMessage = string(config, "users.deniedMessage", "");
 
-        this.openAIAdminKey = string(config, "openAI.adminKey", "").trim();
-        this.billingCreditBalance = decimal(config, "billing.creditBalance", 0);
-        this.billingBalanceDate = string(config, "billing.balanceDate", "").trim();
-        this.billingMonthlyBudget = decimal(config, "billing.monthlyBudget", 0);
-        this.billingWarnBelow = decimal(config, "billing.warnBelow", 5);
-        this.billingCheckCron = string(config, "billing.checkCron", "50 8 * * *");
+        this.pausedMessage = string(config, "openAI.pausedMessage",
+                "Sorry, mein OpenAI-Guthaben ist gerade aufgebraucht 😕 Ich bin pausiert, bis wieder aufgeladen ist. Der Admin ist informiert.");
 
         this.autonomyEnabled = bool(config, "autonomy.enabled", true);
         this.autonomyMayFix = !"report".equalsIgnoreCase(string(config, "autonomy.mode", "fix").trim());
@@ -192,18 +183,6 @@ public final class MirraConfig {
         }
         try {
             return Integer.parseInt(String.valueOf(value).trim());
-        } catch (NumberFormatException e) {
-            return def;
-        }
-    }
-
-    static double decimal(FileConfiguration config, String path, double def) {
-        Object value = config.get(path, def);
-        if (value instanceof Number number) {
-            return number.doubleValue();
-        }
-        try {
-            return Double.parseDouble(String.valueOf(value).trim().replace(',', '.'));
         } catch (NumberFormatException e) {
             return def;
         }

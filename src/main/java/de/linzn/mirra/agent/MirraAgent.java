@@ -48,7 +48,6 @@ import java.util.function.Consumer;
 public class MirraAgent {
 
     private static final DateTimeFormatter NOW_FORMAT = DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy HH:mm", Locale.GERMAN);
-    private static final String QUOTA_ANSWER = "Sorry, mein OpenAI-Guthaben ist gerade aufgebraucht 😕 Der Admin ist informiert.";
     private static final String ERROR_ANSWER = "Entschuldige, da ist gerade etwas schiefgelaufen. Bitte versuch es gleich noch einmal.";
 
     private static final String RULES = """
@@ -185,7 +184,7 @@ public class MirraAgent {
         } catch (OpenAIException e) {
             this.logger.error("OpenAI request failed: " + e.getMessage());
             if (e.isQuotaExceeded()) {
-                return QUOTA_ANSWER;
+                return this.config.pausedMessage;
             }
             return ERROR_ANSWER;
         } catch (RuntimeException e) {

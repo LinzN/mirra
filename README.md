@@ -28,7 +28,7 @@ across chats and turns STEM system events into readable messages.
   print is finished") and carries them out herself (see [Tasks](#tasks))
 - **Watchdog**: Mirra notices failed health checks and errors in the STEM log, analyzes them, fixes what is
   safe and reports to the approver (see [Watchdog](#watchdog))
-- **Credits**: alerts when OpenAI credits are used up or run low, token and cost overview
+- **Out of credits**: when the OpenAI credits are used up, Mirra pauses and only sends a fixed answer
   (see [OpenAI credits](#openai-credits))
 - **Shell**: commands on the STEM server and via SSH on other machines (separate `SHELL` permission)
 - **Memory** in three layers (see [Memory](#memory))
@@ -105,7 +105,6 @@ model for a final answer without tools.
 | `list_tasks`              | registered users (all users: `ADMIN`)   | Planned tasks                                       |
 | `cancel_task`             | owner or `ADMIN`                             | Cancels a planned task                              |
 | `stem_read_log`           | `STEM_VIEW`                                  | Latest STEM log entries, filtered by level and text |
-| `openai_usage`            | `ADMIN`                                      | Tokens per model, costs, budget, remaining credit   |
 | `watchdog_status`         | `ADMIN`                                      | Watchdog status, check now                          |
 | `shell_run`               | `SHELL`                                      | Shell command on the STEM server or via SSH         |
 | `home_list_devices`       | `HOME_VIEW`                                  | Devices of home-devices with state                  |
@@ -309,16 +308,16 @@ The same problem (numbers and ids ignored) is handled at most once per `autonomy
 
 ## OpenAI credits
 
-- When OpenAI answers that the quota is used up (`insufficient_quota`) or the key is invalid, the approver gets a
-  message right away (and a STEM notification), at most every six hours. People chatting with Mirra get a short
-  "no credits" answer instead of a generic error.
-- Mirra counts requests and tokens per model and day (STEM data store `mirra-openai-usage`).
-- OpenAI has no API for the remaining prepaid balance. With an admin key (`openAI.adminKey`, created under
-  Organization → Admin keys) Mirra reads the costs from the Costs API and checks them daily (`billing.checkCron`):
-  - remaining credit = `billing.creditBalance` (balance on `billing.balanceDate`) minus the costs since then;
-    warning below `billing.warnBelow` USD. Update both values after topping up.
-  - monthly budget `billing.monthlyBudget`: warnings at 80 % and 100 %.
-- `openai_usage` shows tokens, costs, budget and remaining credit in the chat.
+When OpenAI answers that the credits are used up (`insufficient_quota`), Mirra pauses:
+
+- no more requests are sent to OpenAI; chats are answered with the fixed text `openAI.pausedMessage`
+  (approval requests of new contacts keep working, they need no AI)
+- the approver gets a message and a STEM notification once
+- every 15 minutes one request is let through as a test; when it works again, Mirra is active again and the
+  approver is told
+- the watchdog does not run while Mirra is paused
+
+An invalid or revoked API key is reported to the approver as well (at most every six hours).
 
 ---
 
@@ -376,6 +375,7 @@ facts (`memory.legacyImported` is set afterwards).
 |------------------------------------|-----------------------------|----------------------------------------------|
 | `openAI.token`                     | `xxxx`                      | OpenAI API key                               |
 | `openAI.baseUrl`                   | `https://api.openai.com/v1` | API base URL (e.g. for a proxy)              |
+| `openAI.pausedMessage`             | `Sorry, mein OpenAI-Guthaben ...` | Answer while Mirra is paused because the credits are used up |
 | `openAI.timeoutSeconds`            | `120`                       | Timeout of one request                       |
 | `default.model`                    | `mirra`                     | Name of the model configuration below        |
 | `default.identityName`             | `Niklas`                    | Name used as sender for STEM events          |
@@ -415,12 +415,6 @@ facts (`memory.legacyImported` is set afterwards).
 | `users.pendingMessage`             | `Hi! 👋 Ich bin Mirra ...`  | Answer to new contacts while pending         |
 | `users.approvedMessage`            | `Du bist freigeschaltet ✅ ...` | Message after the approval               |
 | `users.deniedMessage`              | empty                       | Message after a denial; empty sends nothing  |
-| `openAI.adminKey`                  | empty                       | OpenAI admin key for the Costs API (optional) |
-| `billing.creditBalance`            | `0`                         | Prepaid balance in USD on `billing.balanceDate`, `0` = unknown |
-| `billing.balanceDate`              | empty                       | Date of that balance, `yyyy-MM-dd`           |
-| `billing.monthlyBudget`            | `0`                         | Monthly budget in USD, `0` = none            |
-| `billing.warnBelow`                | `5`                         | Warn when the estimated credit is below this |
-| `billing.checkCron`                | `50 8 * * *`                | Daily credit check                           |
 | `autonomy.enabled`                 | `true`                      | Run the watchdog                             |
 | `autonomy.mode`                    | `fix`                       | `fix` (act and report) or `report` (only analyze) |
 | `autonomy.intervalMinutes`         | `5`                         | How often to look for new problems           |

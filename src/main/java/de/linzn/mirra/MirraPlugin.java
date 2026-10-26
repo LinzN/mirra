@@ -28,8 +28,6 @@ import de.linzn.mirra.agent.ChatContext;
 import de.linzn.mirra.agent.ImageService;
 import de.linzn.mirra.agent.MirraAgent;
 import de.linzn.mirra.agent.attachment.AttachmentProcessor;
-import de.linzn.mirra.agent.autonomy.BillingMonitor;
-import de.linzn.mirra.agent.autonomy.UsageTracker;
 import de.linzn.mirra.agent.autonomy.Watchdog;
 import de.linzn.mirra.messaging.ChatMessenger;
 import de.linzn.mirra.messaging.MessengerException;
@@ -82,8 +80,6 @@ public class MirraPlugin extends STEMPlugin {
     private ChatMessenger messenger;
     private TaskManager taskManager;
     private AccessControl accessControl;
-    private UsageTracker usageTracker;
-    private BillingMonitor billingMonitor;
     private Watchdog watchdog;
 
     public MirraPlugin() {
@@ -126,13 +122,27 @@ public class MirraPlugin extends STEMPlugin {
         this.accessControl = new AccessControl(this, this.mirraConfig);
 
         OpenAIClient client = new OpenAIClient(this.mirraConfig.openAIBaseUrl, this.mirraConfig.openAIToken, this.mirraConfig.openAITimeoutSeconds);
-        this.usageTracker = new UsageTracker(this.getStemApi());
-        this.usageTracker.load();
-        client.setUsageListener((model, endpoint, input, output) -> this.usageTracker.record(model, input, output));
-        this.billingMonitor = new BillingMonitor(this, this.mirraConfig, client, this.usageTracker);
-        client.setErrorListener(this.billingMonitor::onError);
-        this.getStemApi().scheduler().runRepeating(this.usageTracker::saveIfDirty, 5, 5, java.util.concurrent.TimeUnit.MINUTES);
-        this.getStemApi().scheduler().runCron(this.billingMonitor::check, this.mirraConfig.billingCheckCron);
+        /* when the credits run out, Mirra pauses: no requests are sent, chats get the paused message */
+        client.setErrorListener(new OpenAIClient.ErrorListener() {
+            private volatile java.time.Instant lastAuthAlert;
+
+            @Override
+            public void onError(de.linzn.mirra.agent.openai.OpenAIException error) {
+                if (error.isQuotaExceeded()) {
+                    notifyApprover("🚨 OpenAI-Guthaben aufgebraucht! Mirra ist pausiert und antwortet nur noch mit dem Standardtext. "
+                            + "Bitte Credits aufladen (platform.openai.com → Billing); Mirra prüft alle 15 Minuten, ob es weitergeht.", true);
+                } else if (error.isAuthError() && (this.lastAuthAlert == null
+                        || java.time.Duration.between(this.lastAuthAlert, java.time.Instant.now()).toHours() >= 6)) {
+                    this.lastAuthAlert = java.time.Instant.now();
+                    notifyApprover("🚨 Der OpenAI-API-Key von Mirra ist ungültig oder wurde gesperrt: " + error.getMessage(), true);
+                }
+            }
+
+            @Override
+            public void onRecovered() {
+                notifyApprover("✅ OpenAI-Guthaben ist wieder da, Mirra ist wieder aktiv.", false);
+            }
+        });
         LongTermMemory memory = new LongTermMemory(repository, new LongTermMemory.Embedder() {
             @Override
             public List<float[]> embed(List<String> texts) throws Exception {
@@ -175,7 +185,7 @@ public class MirraPlugin extends STEMPlugin {
         this.taskManager = new TaskManager(this, new TaskRepository(this.getStemApi().data(), this.getPluginLogger()));
         this.taskManager.start();
         this.getStemApi().events().register(new TaskEventListener(this.taskManager));
-        this.watchdog = new Watchdog(this, this.mirraConfig, this.billingMonitor);
+        this.watchdog = new Watchdog(this, this.mirraConfig, client::isPaused);
         if (this.mirraConfig.autonomyEnabled) {
             this.watchdog.start();
         }
@@ -187,13 +197,6 @@ public class MirraPlugin extends STEMPlugin {
     public void onDisable() {
         if (this.taskManager != null) {
             this.taskManager.stop();
-        }
-        if (this.usageTracker != null) {
-            try {
-                this.usageTracker.saveIfDirty();
-            } catch (Exception e) {
-                this.getPluginLogger().warning("Could not save OpenAI usage: " + e.getMessage());
-            }
         }
         if (this.discordManager != null) {
             this.discordManager.shutdown();
@@ -292,10 +295,6 @@ public class MirraPlugin extends STEMPlugin {
      */
     public TaskManager getTaskManager() {
         return taskManager;
-    }
-
-    public BillingMonitor getBillingMonitor() {
-        return billingMonitor;
     }
 
     public Watchdog getWatchdog() {

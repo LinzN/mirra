@@ -236,12 +236,7 @@ public final class ControlTools {
             return new JSONObject().put("entries", entries);
         }));
 
-        /* OpenAI credits and the watchdog */
-        tools.add(new SimpleTool("openai_usage",
-                "Mirra's own OpenAI usage: tokens per model today and this month and, with an admin key, costs, budget and the "
-                        + "estimated remaining credit. Use it when somebody asks about tokens, credits, costs or the budget.",
-                Schema.empty(), anyOf(ADMIN), (chat, args) -> plugin.getBillingMonitor().report()));
-
+        /* watchdog */
         tools.add(new SimpleTool("watchdog_status",
                 "Status of Mirra's automatic STEM watchdog (which reacts to failed health checks and errors in the log); "
                         + "optionally run a check now.",

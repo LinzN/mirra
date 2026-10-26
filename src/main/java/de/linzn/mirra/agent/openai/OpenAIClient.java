@@ -62,48 +62,80 @@ public class OpenAIClient {
      * @param request request body (model, instructions, input, tools, previous_response_id, ...)
      */
     /**
-     * Receives the token usage of every request, e.g. to count tokens per model.
-     */
-    public interface UsageListener {
-        void onUsage(String model, String endpoint, long inputTokens, long outputTokens);
-    }
-
-    /**
-     * Receives errors that need a person: no credits left, invalid key.
+     * Receives errors that need a person (no credits left, invalid key) and the recovery after credits ran out.
      */
     public interface ErrorListener {
         void onError(OpenAIException error);
+
+        default void onRecovered() {
+        }
     }
 
-    private volatile UsageListener usageListener;
+    /* after the credits ran out, requests are blocked and only one probe request is sent per interval */
+    private static final java.time.Duration PROBE_INTERVAL = java.time.Duration.ofMinutes(15);
     private volatile ErrorListener errorListener;
-
-    public void setUsageListener(UsageListener usageListener) {
-        this.usageListener = usageListener;
-    }
+    private volatile java.time.Instant pausedSince;
+    private volatile java.time.Instant nextProbe;
 
     public void setErrorListener(ErrorListener errorListener) {
         this.errorListener = errorListener;
     }
 
-    private void notifyUsage(String model, String endpoint, JSONObject json) {
-        UsageListener listener = this.usageListener;
-        JSONObject usage = json.optJSONObject("usage");
-        if (listener == null || usage == null) {
+    /**
+     * @return true while OpenAI reported that the credits are used up; requests fail without being sent
+     */
+    public boolean isPaused() {
+        return this.pausedSince != null;
+    }
+
+    /**
+     * Throws instead of sending while paused; lets one probe request through per interval.
+     */
+    private synchronized void checkPaused() throws OpenAIException {
+        if (this.pausedSince == null) {
             return;
         }
-        long input = usage.optLong("input_tokens", usage.optLong("prompt_tokens", 0));
-        long output = usage.optLong("output_tokens", usage.optLong("completion_tokens", 0));
-        try {
-            listener.onUsage(json.optString("model", model), endpoint, input, output);
-        } catch (RuntimeException ignored) {
-            /* counting must never break a request */
+        java.time.Instant now = java.time.Instant.now();
+        if (this.nextProbe != null && now.isBefore(this.nextProbe)) {
+            throw new OpenAIException(429, "Mirra is paused, the OpenAI credits are used up", "insufficient_quota");
+        }
+        this.nextProbe = now.plus(PROBE_INTERVAL);
+    }
+
+    private void onSuccess() {
+        if (this.pausedSince == null) {
+            return;
+        }
+        synchronized (this) {
+            if (this.pausedSince == null) {
+                return;
+            }
+            this.pausedSince = null;
+            this.nextProbe = null;
+        }
+        ErrorListener listener = this.errorListener;
+        if (listener != null) {
+            try {
+                listener.onRecovered();
+            } catch (RuntimeException ignored) {
+                /* alerting must never break a request */
+            }
         }
     }
 
     private void notifyError(OpenAIException error) {
+        boolean first = false;
+        if (error.isQuotaExceeded()) {
+            synchronized (this) {
+                first = this.pausedSince == null;
+                if (first) {
+                    this.pausedSince = java.time.Instant.now();
+                }
+                this.nextProbe = java.time.Instant.now().plus(PROBE_INTERVAL);
+            }
+        }
         ErrorListener listener = this.errorListener;
-        if (listener != null) {
+        if (listener != null && (first || error.isAuthError())) {
             try {
                 listener.onError(error);
             } catch (RuntimeException ignored) {
@@ -112,61 +144,8 @@ public class OpenAIClient {
         }
     }
 
-    /**
-     * Costs per day from the Costs API ({@code GET /organization/costs}). Needs an admin key.
-     *
-     * @param start first day (UTC midnight is used by OpenAI)
-     * @return costs in USD per bucket start (epoch seconds)
-     */
-    public java.util.SortedMap<Long, Double> costs(String adminKey, java.time.Instant start) throws OpenAIException, InterruptedException {
-        java.util.SortedMap<Long, Double> result = new java.util.TreeMap<>();
-        String page = null;
-        for (int i = 0; i < 20; i++) {
-            String url = this.baseUrl + "/organization/costs?bucket_width=1d&limit=31&start_time=" + start.getEpochSecond()
-                    + (page == null ? "" : "&page=" + java.net.URLEncoder.encode(page, StandardCharsets.UTF_8));
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(this.timeout)
-                    .header("Authorization", "Bearer " + adminKey).GET().build();
-            HttpResponse<String> response;
-            try {
-                response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                throw new OpenAIException(0, "Connection to OpenAI failed: " + e.getMessage());
-            }
-            if (response.statusCode() != 200) {
-                throw new OpenAIException(response.statusCode(), errorMessage(response.body()), errorCode(response.body()));
-            }
-            JSONObject json = new JSONObject(response.body());
-            JSONArray data = json.optJSONArray("data");
-            if (data != null) {
-                for (int b = 0; b < data.length(); b++) {
-                    JSONObject bucket = data.getJSONObject(b);
-                    double sum = 0;
-                    JSONArray results = bucket.optJSONArray("results");
-                    if (results != null) {
-                        for (int r = 0; r < results.length(); r++) {
-                            JSONObject amount = results.getJSONObject(r).optJSONObject("amount");
-                            if (amount != null) {
-                                sum += amount.optDouble("value", 0);
-                            }
-                        }
-                    }
-                    result.merge(bucket.optLong("start_time"), sum, Double::sum);
-                }
-            }
-            if (!json.optBoolean("has_more", false) || json.isNull("next_page")) {
-                break;
-            }
-            page = json.optString("next_page", null);
-            if (page == null || page.isEmpty()) {
-                break;
-            }
-        }
-        return result;
-    }
-
     public AgentResponse createResponse(JSONObject request) throws OpenAIException, InterruptedException {
         JSONObject json = this.post("/responses", request);
-        this.notifyUsage(request.optString("model"), "responses", json);
         AgentResponse response = AgentResponse.parse(json);
         if ("failed".equals(response.status())) {
             throw new OpenAIException(500, "Response failed: " + response.errorMessage());
@@ -187,7 +166,6 @@ public class OpenAIClient {
         request.put("model", model);
         request.put("input", new JSONArray(inputs));
         JSONObject json = this.post("/embeddings", request);
-        this.notifyUsage(model, "embeddings", json);
         JSONArray data = json.optJSONArray("data");
         if (data == null || data.length() != inputs.size()) {
             throw new OpenAIException(500, "Embedding response does not match the input");
@@ -286,6 +264,7 @@ public class OpenAIClient {
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
                 .build();
+        this.checkPaused();
         HttpResponse<byte[]> response;
         try {
             response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -293,8 +272,14 @@ public class OpenAIClient {
             throw new OpenAIException(0, "Connection to OpenAI failed: " + e.getMessage());
         }
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new OpenAIException(response.statusCode(), errorMessage(new String(response.body(), StandardCharsets.UTF_8)));
+            String errorBody = new String(response.body(), StandardCharsets.UTF_8);
+            OpenAIException error = new OpenAIException(response.statusCode(), errorMessage(errorBody), errorCode(errorBody));
+            if (error.isQuotaExceeded() || error.isAuthError()) {
+                this.notifyError(error);
+            }
+            throw error;
         }
+        this.onSuccess();
         return response.body();
     }
 
@@ -316,6 +301,7 @@ public class OpenAIClient {
     }
 
     private JSONObject execute(HttpRequest request) throws OpenAIException, InterruptedException {
+        this.checkPaused();
         OpenAIException lastError = null;
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             if (attempt > 0) {
@@ -330,6 +316,7 @@ public class OpenAIClient {
             }
             int status = response.statusCode();
             if (status >= 200 && status < 300) {
+                this.onSuccess();
                 return new JSONObject(response.body());
             }
             lastError = new OpenAIException(status, errorMessage(response.body()), errorCode(response.body()));

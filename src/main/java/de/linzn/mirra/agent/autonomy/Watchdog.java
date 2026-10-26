@@ -45,18 +45,21 @@ public class Watchdog {
     private final MirraPlugin plugin;
     private final MirraConfig config;
     private final StemApi api;
-    private final BillingMonitor billing;
+    private final java.util.function.BooleanSupplier paused;
     private final Map<String, Instant> handled = new ConcurrentHashMap<>();
     private final AtomicInteger runsToday = new AtomicInteger();
     private volatile LocalDate runsDay;
     private volatile Instant lastLogCheck = Instant.now();
     private volatile boolean running;
 
-    public Watchdog(MirraPlugin plugin, MirraConfig config, BillingMonitor billing) {
+    /**
+     * @param paused tells whether OpenAI can be used right now (false while the credits are used up)
+     */
+    public Watchdog(MirraPlugin plugin, MirraConfig config, java.util.function.BooleanSupplier paused) {
         this.plugin = plugin;
         this.config = config;
         this.api = plugin.getStemApi();
-        this.billing = billing;
+        this.paused = paused;
     }
 
     public void start() {
@@ -79,7 +82,7 @@ public class Watchdog {
             if (problems.isEmpty()) {
                 return;
             }
-            if (this.billing != null && this.billing.isQuotaExceeded()) {
+            if (this.paused != null && this.paused.getAsBoolean()) {
                 this.plugin.getPluginLogger().warning("Watchdog: " + problems.size() + " problem(s), but no OpenAI credits");
                 return;
             }
@@ -154,7 +157,7 @@ public class Watchdog {
         if (text.startsWith("#####") || text.startsWith("at ")) {
             return false;
         }
-        /* Mirra's own OpenAI problems are handled by the billing monitor, never by Mirra herself */
+        /* Mirra's own OpenAI problems are reported directly, never handled by Mirra herself */
         if (lower.contains("openai") || lower.contains("watchdog")) {
             return false;
         }
