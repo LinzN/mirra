@@ -53,6 +53,18 @@ public final class MirraConfig {
     public final int attachmentMaxSizeMB;
     public final int attachmentKeepMinutes;
 
+    public final boolean voiceEnabled;
+    public final boolean voiceReplyToVoice;
+    public final String voiceModel;
+    public final String voiceName;
+    public final String voiceInstructions;
+
+    public final boolean shellEnabled;
+    public final String shellSshUser;
+    public final int shellSshPort;
+    public final int shellTimeoutSeconds;
+    public final List<String> shellAllowedHosts;
+
     public final boolean autoMemory;
     public final int summaryThreshold;
     public final int memoryContextSize;
@@ -89,6 +101,18 @@ public final class MirraConfig {
         this.attachmentsForGuests = bool(config, "attachments.guests", false);
         this.attachmentMaxSizeMB = clamp(integer(config, "attachments.maxSizeMB", 25), 1, 50);
         this.attachmentKeepMinutes = clamp(integer(config, "attachments.keepMinutes", 30), 0, 1440);
+
+        this.voiceEnabled = bool(config, "voice.enabled", true);
+        this.voiceReplyToVoice = bool(config, "voice.replyToVoice", false);
+        this.voiceModel = string(config, "voice.model", "gpt-4o-mini-tts");
+        this.voiceName = string(config, "voice.voice", "nova");
+        this.voiceInstructions = string(config, "voice.instructions", "Speak in German, young, cheerful and a bit cheeky.");
+
+        this.shellEnabled = bool(config, "agent.shell.enabled", true);
+        this.shellSshUser = string(config, "agent.shell.sshUser", "root");
+        this.shellSshPort = clamp(integer(config, "agent.shell.sshPort", 22), 1, 65535);
+        this.shellTimeoutSeconds = clamp(integer(config, "agent.shell.timeoutSeconds", 120), 1, 3600);
+        this.shellAllowedHosts = stringList(config, "agent.shell.allowedHosts", List.of());
 
         this.autoMemory = bool(config, "memory.autoExtract", true);
         this.summaryThreshold = clamp(integer(config, "memory.summaryThreshold", 40), 10, 500);

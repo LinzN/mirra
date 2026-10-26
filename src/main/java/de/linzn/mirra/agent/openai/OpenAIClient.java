@@ -164,6 +164,35 @@ public class OpenAIClient {
         return this.execute(request).optString("text", "");
     }
 
+    /**
+     * POST /audio/speech
+     *
+     * @param format opus, mp3, aac, flac, wav or pcm
+     * @return the audio
+     */
+    public byte[] speech(String model, String voice, String instructions, String text, String format) throws OpenAIException, InterruptedException {
+        JSONObject body = new JSONObject().put("model", model).put("voice", voice).put("input", text).put("response_format", format);
+        if (instructions != null && !instructions.isBlank()) {
+            body.put("instructions", instructions);
+        }
+        HttpRequest request = HttpRequest.newBuilder(URI.create(this.baseUrl + "/audio/speech"))
+                .timeout(this.timeout)
+                .header("Authorization", "Bearer " + this.apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
+                .build();
+        HttpResponse<byte[]> response;
+        try {
+            response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        } catch (IOException e) {
+            throw new OpenAIException(0, "Connection to OpenAI failed: " + e.getMessage());
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new OpenAIException(response.statusCode(), errorMessage(new String(response.body(), StandardCharsets.UTF_8)));
+        }
+        return response.body();
+    }
+
     private static void writeField(ByteArrayOutputStream body, String boundary, String name, String value) {
         String part = "--" + boundary + "\r\n"
                 + "Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n"

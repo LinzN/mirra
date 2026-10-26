@@ -18,6 +18,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -50,6 +51,24 @@ public class IdentityManager {
             }
         }
         return new IdentityGuest(userToken);
+    }
+
+    /**
+     * @return all registered identities
+     */
+    public List<IdentityUser> getIdentities() {
+        return List.copyOf(this.identities);
+    }
+
+    /**
+     * @return the identity with this name, ignoring case
+     */
+    public Optional<IdentityUser> findIdentity(String name) {
+        if (name == null) {
+            return Optional.empty();
+        }
+        String wanted = name.trim();
+        return this.identities.stream().filter(identity -> identity.getIdentityName().equalsIgnoreCase(wanted)).findFirst();
     }
 
     private void loadIdentities() {

@@ -28,8 +28,12 @@ import de.linzn.mirra.agent.ChatContext;
 import de.linzn.mirra.agent.ImageService;
 import de.linzn.mirra.agent.MirraAgent;
 import de.linzn.mirra.agent.attachment.AttachmentProcessor;
+import de.linzn.mirra.messaging.ChatMessenger;
+import de.linzn.mirra.messaging.MessengerException;
 import de.linzn.mirra.agent.openai.OpenAIClient;
 import de.linzn.mirra.agent.tools.AssistantTools;
+import de.linzn.mirra.agent.tools.ControlTools;
+import de.linzn.mirra.agent.tools.MessagingTools;
 import de.linzn.mirra.agent.tools.HomeTools;
 import de.linzn.mirra.agent.tools.StemTools;
 import de.linzn.mirra.agent.tools.ToolRegistry;
@@ -64,6 +68,7 @@ public class MirraPlugin extends STEMPlugin {
     private MirraAgent agent;
     private ImageService imageService;
     private AttachmentProcessor attachmentProcessor;
+    private ChatMessenger messenger;
 
     public MirraPlugin() {
         mirraPlugin = this;
@@ -104,12 +109,15 @@ public class MirraPlugin extends STEMPlugin {
         MemoryKeeper keeper = new MemoryKeeper(client, memory, repository, this.getPluginLogger(), this.mirraConfig.modelName,
                 this.mirraConfig.memoryModel, this.mirraConfig.historyMessages, this.mirraConfig.summaryThreshold);
         this.imageService = new ImageService(this, client, this.mirraConfig.imageModel);
+        this.messenger = new ChatMessenger(this, this.mirraConfig, client);
         this.attachmentProcessor = new AttachmentProcessor(client, this.getPluginLogger(), this.mirraConfig.transcriptionModel, this.mirraConfig.attachmentMaxSizeMB);
 
         ToolRegistry tools = new ToolRegistry(this.getPluginLogger());
         tools.registerAll(StemTools.create(this, this.mirraConfig));
         tools.registerAll(HomeTools.create());
         tools.registerAll(AssistantTools.create(this));
+        tools.registerAll(MessagingTools.create(this));
+        tools.registerAll(ControlTools.create(this, this.mirraConfig));
         this.agent = new MirraAgent(client, this.mirraConfig, tools, repository, memory, keeper, this.getPluginLogger(),
                 task -> this.getStemApi().scheduler().runAsync(task), this.getStemApi().system().getZone(), this.attachmentProcessor);
         this.getPluginLogger().info("Mirra agent ready with " + tools.getTools().size() + " tools, model " + this.mirraConfig.textModel);
@@ -217,6 +225,32 @@ public class MirraPlugin extends STEMPlugin {
 
     public MirraAgent getAgent() {
         return agent;
+    }
+
+    public ChatMessenger getMessenger() {
+        return messenger;
+    }
+
+    /**
+     * Send the answer of a chat turn as text, or as voice message if voice replies are enabled and the person spoke.
+     */
+    public void deliverAnswer(ChatContext chat, String answer, boolean incomingVoice) {
+        if (answer == null || answer.isBlank()) {
+            return;
+        }
+        if (incomingVoice && this.mirraConfig.voiceReplyToVoice && this.mirraConfig.voiceEnabled) {
+            try {
+                this.messenger.sendVoice(chat.userToken(), answer);
+                return;
+            } catch (MessengerException e) {
+                this.getPluginLogger().warning("Voice reply failed, sending text: " + e.getMessage());
+            }
+        }
+        try {
+            this.messenger.sendText(chat.userToken(), answer);
+        } catch (MessengerException e) {
+            this.getPluginLogger().error("Unable to deliver answer to " + chat.name() + ": " + e.getMessage());
+        }
     }
 
     public AttachmentProcessor getAttachmentProcessor() {

@@ -25,5 +25,9 @@ public enum AiPermissions {
      * Control STEM: console commands, scripts, MQTT messages, notifications, information blocks, all devices,
      * smart home profile, health checks. Includes everything of STEM_READ.
      */
-    STEM_ADMIN
+    STEM_ADMIN,
+    /**
+     * Run shell commands on the STEM host and via SSH on other hosts. Not included in STEM_ADMIN.
+     */
+    SHELL
 }

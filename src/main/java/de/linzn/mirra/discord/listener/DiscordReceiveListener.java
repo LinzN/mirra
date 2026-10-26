@@ -76,11 +76,11 @@ public class DiscordReceiveListener extends ListenerAdapter {
         this.plugin.getPluginLogger().info("Discord message from " + user.getName() + (files.isEmpty() ? "" : " with " + files.size() + " file(s)"));
         UserToken userToken = this.plugin.getIdentityManager().getOrCreateUserToken(user.getId(), TokenSource.DISCORD);
         ChatContext chat = this.plugin.chatContext(userToken, user.getName());
-        String answer = this.plugin.getAgent().chat(chat, content, this.download(files));
+        List<Attachment> attachments = this.download(files);
+        String answer = this.plugin.getAgent().chat(chat, content, attachments);
         this.plugin.getPluginLogger().debug("Answer to " + user.getName() + ": " + answer);
-        if (answer != null && !answer.isBlank()) {
-            this.discordManager.sendPrivateMessage(user.getId(), answer);
-        }
+        boolean voice = attachments.stream().anyMatch(a -> a.voice() || (a.mimeType() != null && a.mimeType().startsWith("audio/")));
+        this.plugin.deliverAnswer(chat, answer, voice);
     }
 
     private List<Attachment> download(List<Message.Attachment> files) {

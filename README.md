@@ -20,6 +20,10 @@ across chats and turns STEM system events into readable messages.
   guests with minimal rights; tools a user may not use are not offered to the model at all
 - **Files**: images, PDFs, Office documents, text and code files and voice messages sent on Discord or
   WhatsApp (see [Files](#files))
+- **Sending**: images, files Mirra writes herself, files of the server and voice messages into the chat;
+  messages, files and voice messages to other registered users on request
+- **Voice**: text to speech with an OpenAI voice, optionally as answer to every voice message
+- **Shell**: commands on the STEM server and via SSH on other machines (separate `SHELL` permission)
 - **Memory** in three layers (see [Memory](#memory))
 - **Reminders**: due reminders are sent to the user on Discord or WhatsApp
 - **Notifications**: information blocks with the intent `NOTIFY_USER` are sent to the default Discord user
@@ -70,6 +74,16 @@ model for a final answer without tools.
 | `stem_mqtt_publish`       | `STEM_ADMIN`                                 | Publishes an MQTT message                           |
 | `stem_push_notification`  | `STEM_ADMIN`                                 | Sends a STEM notification                           |
 | `stem_show_information`   | `STEM_ADMIN`                                 | Shows an information block                          |
+| `stem_remove_information` | `STEM_ADMIN`                                 | Removes (expires) an active information block       |
+| `stem_cloud_share`        | `STEM_ADMIN`                                 | Public link for a file in the STEM cloud            |
+| `stem_cloud_upload`       | `STEM_ADMIN`                                 | Stores a text file (or a server file with `SHELL`) in the cloud |
+| `stem_data_get`           | `STEM_READ`                                  | Reads a JSON container of the STEM data store       |
+| `stem_data_set`           | `STEM_ADMIN`                                 | Writes a JSON container of the STEM data store      |
+| `stem_sql`                | `STEM_ADMIN`                                 | Runs an SQL statement on the STEM database (max. 200 rows) |
+| `stem_mqtt_read`          | `STEM_READ`                                  | Listens to MQTT topics for a few seconds            |
+| `stem_schedule_command`   | `STEM_ADMIN`                                 | Runs a console command later and reports the result |
+| `stem_scheduled_commands` | `STEM_ADMIN`                                 | Lists or cancels planned commands                   |
+| `shell_run`               | `SHELL`                                      | Shell command on the STEM server or via SSH         |
 | `home_list_devices`       | `STEM_READ`                                  | Devices of home-devices with state                  |
 | `home_get_device`         | `STEM_READ`                                  | Details of one device                               |
 | `home_get_lights`         | `STATUS_LIGHT` or `STEM_READ`                | State of all lights                                 |
@@ -81,11 +95,19 @@ model for a final answer without tools.
 | `create_reminder`, `list_reminders`, `cancel_reminder` | `CREATE_REMINDER`, registered users | Reminders                    |
 | `remember`, `forget`      | `LONG_TERM_MEMORY_WRITE`                     | Stores or deletes a long term memory                |
 | `recall`                  | `LONG_TERM_MEMORY_ACCESS` or `LONG_TERM_MEMORY_WRITE` | Searches the long term memory              |
-| `create_image`            | `CREATE_IMAGE`                               | Generates an image and returns a link               |
+| `create_image`            | `CREATE_IMAGE`                               | Generates an image and sends it into the chat (link elsewhere) |
+| `list_users`              | `STEM_READ`                                  | Registered users and their channels                 |
+| `send_message`            | `STEM_ADMIN`                                 | Text message to another registered user             |
+| `send_file`               | registered users (others: `STEM_ADMIN`, server files: `SHELL`) | Sends a file from text, a server path or a URL |
+| `send_voice_message`      | registered users (others: `STEM_ADMIN`)      | Speaks a text and sends it as voice message         |
 | `set_mirra_status`        | no guests                                    | Sets the Discord activity and a WhatsApp status     |
 
-`STEM_ADMIN` includes `STEM_READ`. Guests only have `STATUS_STEM`. Console commands listed in
-`agent.blockedCommands` are never run.
+`STEM_ADMIN` includes `STEM_READ`. `SHELL` is separate and not part of `STEM_ADMIN`; give it only to people
+who may run any command on the server. SSH uses the key based login of the user STEM runs as (`BatchMode`, no
+password prompts). Guests only have `STATUS_STEM`. Console commands listed in `agent.blockedCommands` are
+never run. Messages Mirra sends to other users are added to their chat history, so she knows the context
+when they answer. Commands planned with `stem_schedule_command` are kept in memory only and are lost on a
+restart.
 
 ---
 
@@ -140,9 +162,9 @@ facts (`memory.legacyImported` is set afterwards).
 |-------------|-----------------------------------------------------------------------------------------------|
 | STEM        | 1.2.0 or newer with `CommandService.execute` (branch `agent`), database module configured     |
 | Plugins     | [home-devices](https://github.com/LinzN/home-devices), [weather](https://github.com/LinzN/weather), [gas-station](https://github.com/LinzN/gas-station) |
-| OpenAI      | API key with access to the Responses, Embeddings, Images and Audio API                        |
+| OpenAI      | API key with access to the Responses, Embeddings, Images and Audio API (transcription, speech) |
 | Discord     | Bot token with the **Message Content** intent (optional)                                      |
-| WhatsApp    | Evolution API v2 instance with RabbitMQ (optional), [evolution-api-java](https://github.com/LinzN/evolution-api-java) 0.0.4 |
+| WhatsApp    | Evolution API v2 instance with RabbitMQ (optional), [evolution-api-java](https://github.com/LinzN/evolution-api-java) 0.0.5 |
 
 ---
 
@@ -186,6 +208,16 @@ facts (`memory.legacyImported` is set afterwards).
 | `attachments.guests`               | `false`                     | Also read files of guests                    |
 | `attachments.maxSizeMB`            | `25`                        | Largest file Mirra reads (at most 50)        |
 | `attachments.keepMinutes`          | `30`                        | How long files are sent again for follow-up questions, `0` to disable |
+| `voice.enabled`                    | `true`                      | Allow voice messages from Mirra              |
+| `voice.replyToVoice`               | `false`                     | Answer voice messages with a voice message   |
+| `voice.model`                      | `gpt-4o-mini-tts`           | Text to speech model                         |
+| `voice.voice`                      | `nova`                      | Voice, e.g. `nova`, `coral`, `shimmer`       |
+| `voice.instructions`               | `Speak in German, ...`      | How the voice should sound                   |
+| `agent.shell.enabled`              | `true`                      | Offer `shell_run` to users with `SHELL`      |
+| `agent.shell.sshUser`              | `root`                      | Default SSH user                             |
+| `agent.shell.sshPort`              | `22`                        | Default SSH port                             |
+| `agent.shell.timeoutSeconds`       | `120`                       | Default timeout of a shell command           |
+| `agent.shell.allowedHosts`         | `[]`                        | SSH hosts Mirra may use; empty allows all    |
 | `memory.autoExtract`               | `true`                      | Extract long term memories after each message |
 | `memory.summaryThreshold`          | `40`                        | Unsummarized messages that trigger a summary |
 | `memory.contextSize`               | `12`                        | Long term memories added to each request     |

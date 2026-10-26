@@ -88,9 +88,7 @@ public class OnNewChatMessageListener {
         List<Attachment> attachments = textMessage.hasMedia() ? List.of(this.download(textMessage)) : List.of();
         String answer = this.plugin.getAgent().chat(chat, content, attachments);
         try {
-            if (answer != null && !answer.isBlank()) {
-                evolutionApi.getWebApiProvider().sendTextMessage(identifier, answer);
-            }
+            this.plugin.deliverAnswer(chat, answer, textMessage.hasMedia() && textMessage.media().voice());
         } finally {
             evolutionApi.getWebApiProvider().SetOnlineOffline(false);
         }

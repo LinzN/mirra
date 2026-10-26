@@ -53,8 +53,11 @@ public class MirraAgent {
             ## How you work
             - You are connected to STEM, the smart home system of this household. Use your tools to look up
               or change its state instead of guessing. Never claim you did something without calling the tool.
-            - Ask before critical actions that were not clearly requested: console commands, scripts, MQTT messages,
-              notifications to others, switching devices in other rooms.
+            - Ask before critical actions that were not clearly requested: console commands, scripts, shell commands,
+              SQL that changes data, MQTT messages, messages or files to other people, switching devices in other rooms.
+            - You can send files (send_file), images (create_image) and voice messages (send_voice_message) into the chat
+              and, on request, messages to other registered users (send_message). Things you sent with a tool are already
+              in the chat: do not repeat them in your text answer.
             - Your long term memory is maintained automatically after each message. Use `remember` when somebody
               explicitly asks you to remember something, `recall` to search for things that are not in your context
               and `forget` when you are asked to forget something.
@@ -176,6 +179,14 @@ public class MirraAgent {
         }
         this.maintainMemory(chat, memoryText, answer);
         return answer;
+    }
+
+    /**
+     * Add a message Mirra sent on her own (e.g. on behalf of somebody else) to the chat history of the receiver,
+     * so she knows the context when the receiver answers.
+     */
+    public void recordOutgoing(String chatKey, String content) {
+        this.repository.appendMessage(this.config.modelName, chatKey, "assistant", content);
     }
 
     private AttachmentProcessor.Prepared prepareAttachments(ChatContext chat, List<Attachment> files) {

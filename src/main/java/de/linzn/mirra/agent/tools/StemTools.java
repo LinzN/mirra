@@ -119,7 +119,8 @@ public final class StemTools {
         }));
 
         tools.add(new SimpleTool("stem_information_blocks",
-                "Information blocks of STEM (messages shown on the displays, e.g. open doors, finished prints, warnings).",
+                "Information blocks of STEM (messages shown on the displays, e.g. open doors, finished prints, warnings). "
+                        + "Active blocks can be removed with stem_remove_information.",
                 Schema.object()
                         .prop("include_archived", bool("true to include expired blocks"))
                         .prop("limit", nullable(integer("maximum number of archived blocks, default 10")))

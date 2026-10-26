@@ -53,7 +53,7 @@ public class IdentityUser {
         return identityName;
     }
 
-    List<UserToken> getUserTokens() {
+    public List<UserToken> getUserTokens() {
         return this.userTokens;
     }
 }

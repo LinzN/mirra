@@ -37,6 +37,20 @@ public class ImageService {
     }
 
     /**
+     * Generate an image.
+     *
+     * @return the PNG data
+     */
+    public byte[] generate(String description) throws Exception {
+        OpenAIClient.GeneratedImage image = this.client.generateImage(this.model, description);
+        return image.base64().isPresent()
+                ? Base64.getDecoder().decode(image.base64().get())
+                : this.client.download(image.url().orElseThrow());
+    }
+
+    /**
+     * Generate an image and share it.
+     *
      * @return a link to the image: a cloud share link, or the OpenAI link if no cloud is configured
      */
     public String create(String description) throws Exception {
@@ -52,12 +66,22 @@ public class ImageService {
         byte[] data = image.base64().isPresent()
                 ? Base64.getDecoder().decode(image.base64().get())
                 : this.client.download(image.url().orElseThrow());
-        Path folder = this.plugin.getTempFolder().toPath().resolve("cloudUpload");
-        Files.createDirectories(folder);
-        Path file = Files.createTempFile(folder, "mirra_", ".png");
+        return this.upload(data, "mirra_", ".png", "/GeneratedImages/");
+    }
+
+    /**
+     * Upload data to the STEM cloud and create a public link.
+     */
+    public String upload(byte[] data, String prefix, String suffix, String folder) throws Exception {
+        if (!this.plugin.getStemApi().cloud().isEnabled()) {
+            throw new IllegalStateException("No STEM cloud configured");
+        }
+        Path tempFolder = this.plugin.getTempFolder().toPath().resolve("cloudUpload");
+        Files.createDirectories(tempFolder);
+        Path file = Files.createTempFile(tempFolder, prefix, suffix);
         try {
             Files.write(file, data);
-            Optional<CloudFileHandle> handle = this.plugin.getStemApi().cloud().uploadWithRandomName(file.toFile(), "/GeneratedImages/");
+            Optional<CloudFileHandle> handle = this.plugin.getStemApi().cloud().uploadWithRandomName(file.toFile(), folder);
             return handle.map(CloudFileHandle::createPublicShareLink)
                     .orElseThrow(() -> new IllegalStateException("Upload to the cloud failed"));
         } finally {

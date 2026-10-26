@@ -19,6 +19,7 @@ import de.linzn.mirra.MirraPlugin;
 import de.linzn.mirra.core.reminder.MirraReminder;
 import de.linzn.mirra.memory.LongTermMemory;
 import de.linzn.mirra.memory.MemoryEntry;
+import de.linzn.mirra.messaging.OutgoingFile;
 import de.linzn.weather.WeatherPlugin;
 import de.linzn.weather.engine.ForeCastDay;
 import de.linzn.weather.engine.WeatherContainer;
@@ -202,9 +203,21 @@ public final class AssistantTools {
 
         /* images */
         tools.add(new SimpleTool("create_image",
-                "Create an image from a description and return a link to it.",
-                Schema.object().prop("description", string("detailed description of the image")).build(),
-                anyOf(CREATE_IMAGE), (chat, args) -> new JSONObject().put("url", plugin.getImageService().create(requireString(args, "description")))));
+                "Create an image from a description. In Discord and WhatsApp chats the image is sent directly into the chat, "
+                        + "otherwise a link is returned.",
+                Schema.object()
+                        .prop("description", string("detailed description of the image"))
+                        .prop("caption", nullable(string("short text sent with the image")))
+                        .build(),
+                anyOf(CREATE_IMAGE), (chat, args) -> {
+            String description = requireString(args, "description");
+            if (plugin.getMessenger() != null && plugin.getMessenger().canSend(chat.userToken())) {
+                byte[] png = plugin.getImageService().generate(description);
+                plugin.getMessenger().sendFile(chat.userToken(), new OutgoingFile("Mirra.png", "image/png", png), optString(args, "caption"));
+                return new JSONObject().put("sent", true).put("note", "The image is already in the chat, do not send a link");
+            }
+            return new JSONObject().put("url", plugin.getImageService().create(description));
+        }));
 
         /* social status */
         tools.add(new SimpleTool("set_mirra_status",
