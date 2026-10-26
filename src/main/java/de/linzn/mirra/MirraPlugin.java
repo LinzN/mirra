@@ -159,6 +159,7 @@ public class MirraPlugin extends STEMPlugin {
 
         MemoryKeeper keeper = new MemoryKeeper(client, memory, repository, this.getPluginLogger(), this.mirraConfig.modelName,
                 this.mirraConfig.memoryModel, this.mirraConfig.historyMessages, this.mirraConfig.summaryThreshold);
+        keeper.setReasoningEffort(this.mirraConfig.memoryReasoningEffort);
         this.imageService = new ImageService(this, client, this.mirraConfig.imageModel);
         this.messenger = new ChatMessenger(this, this.mirraConfig, client);
         this.attachmentProcessor = new AttachmentProcessor(client, this.getPluginLogger(), this.mirraConfig.transcriptionModel, this.mirraConfig.attachmentMaxSizeMB);

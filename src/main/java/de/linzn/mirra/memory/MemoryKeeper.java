@@ -74,6 +74,8 @@ public class MemoryKeeper {
     private final String chatModel;
     private final int historyMessages;
     private final int summaryThreshold;
+    /* reasoning effort for the memory model, empty for the model default */
+    private volatile String reasoningEffort = "";
     private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
 
     /**
@@ -92,6 +94,20 @@ public class MemoryKeeper {
         this.memoryModel = memoryModel;
         this.historyMessages = historyMessages;
         this.summaryThreshold = summaryThreshold;
+    }
+
+    /**
+     * @param effort reasoning effort of the memory model, e.g. "none" for reasoning models; empty for the default
+     */
+    public void setReasoningEffort(String effort) {
+        this.reasoningEffort = effort == null ? "" : effort;
+    }
+
+    private JSONObject withReasoning(JSONObject request) {
+        if (!this.reasoningEffort.isEmpty()) {
+            request.put("reasoning", new JSONObject().put("effort", this.reasoningEffort));
+        }
+        return request;
     }
 
     /**
@@ -143,7 +159,7 @@ public class MemoryKeeper {
                     .put("input", input)
                     .put("store", false)
                     .put("text", new JSONObject().put("format", operationsFormat()));
-            AgentResponse response = this.client.createResponse(request);
+            AgentResponse response = this.client.createResponse(this.withReasoning(request));
             JSONObject result = new JSONObject(response.text());
             int changed = this.apply(result.optJSONArray("operations"), owner, allowGlobal, knownIds);
             JSONArray profile = result.optJSONArray("profile");
@@ -261,7 +277,7 @@ public class MemoryKeeper {
                     .put("instructions", SUMMARY_PROMPT)
                     .put("input", input.toString())
                     .put("store", false);
-            String text = this.client.createResponse(request).text();
+            String text = this.client.createResponse(this.withReasoning(request)).text();
             if (text.isBlank()) {
                 return false;
             }

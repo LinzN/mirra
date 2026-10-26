@@ -35,6 +35,7 @@ public final class MirraConfig {
     public final String embeddingModel;
     public final String imageModel;
     public final String reasoningEffort;
+    public final String memoryReasoningEffort;
     public final String transcriptionModel;
     public final String personality;
     public final String defaultIdentityName;
@@ -106,6 +107,7 @@ public final class MirraConfig {
         this.memoryModel = string(config, prefix + "memoryModel", this.textModel);
         this.embeddingModel = string(config, prefix + "embeddingModel", "text-embedding-3-small");
         this.reasoningEffort = string(config, prefix + "reasoningEffort", "").trim().toLowerCase(Locale.ROOT);
+        this.memoryReasoningEffort = string(config, prefix + "memoryReasoningEffort", "").trim().toLowerCase(Locale.ROOT);
         this.transcriptionModel = string(config, prefix + "transcriptionModel", "gpt-4o-mini-transcribe");
 
         this.maxToolRounds = clamp(integer(config, "agent.maxToolRounds", 10), 1, 30);

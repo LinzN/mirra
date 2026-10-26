@@ -387,6 +387,7 @@ facts (`memory.legacyImported` is set afterwards).
 | `model.<name>.embeddingModel`      | `text-embedding-3-small`    | Embedding model of the long term memory      |
 | `model.<name>.transcriptionModel`  | `gpt-4o-mini-transcribe`    | Speech to text model for voice messages      |
 | `model.<name>.reasoningEffort`     | empty                       | Reasoning effort of reasoning models (e.g. `low`, `medium`, `high`), empty for the model default |
+| `model.<name>.memoryReasoningEffort` | empty                     | Reasoning effort of the memory model, e.g. `none` to save tokens; empty for the model default |
 | `agent.maxToolRounds`              | `10`                        | Tool rounds per message                      |
 | `agent.historyMessages`            | `16`                        | Chat messages sent with each request         |
 | `agent.webSearch`                  | `false`                     | Offer the OpenAI web search tool to registered users |
