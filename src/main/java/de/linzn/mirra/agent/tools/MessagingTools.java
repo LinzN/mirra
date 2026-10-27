@@ -63,7 +63,7 @@ public final class MessagingTools {
             UserToken token = recipient(plugin, requireString(args, "recipient"), optString(args, "channel"));
             String text = requireString(args, "text");
             plugin.getMessenger().sendText(token, text);
-            plugin.getAgent().recordOutgoing(token.getName(), "[Message sent on behalf of " + chat.name() + "] " + text);
+            plugin.getAgent().recordOutgoing(token.getName(), text);
             plugin.getPluginLogger().info("Message to " + args.getString("recipient") + " on behalf of " + chat.name());
             return new JSONObject().put("sent", true).put("channel", token.getSource().name().toLowerCase());
         }));
@@ -119,7 +119,7 @@ public final class MessagingTools {
             UserToken token = target(plugin, chat, optString(args, "recipient"));
             plugin.getMessenger().sendFile(token, OutgoingFile.of(fileName, data), optString(args, "caption"));
             if (!token.equals(chat.userToken())) {
-                plugin.getAgent().recordOutgoing(token.getName(), "[File " + fileName + " sent on behalf of " + chat.name() + "]");
+                plugin.getAgent().recordOutgoing(token.getName(), "📎 " + fileName);
             }
             return new JSONObject().put("sent", true).put("bytes", data.length);
         }));
@@ -137,7 +137,7 @@ public final class MessagingTools {
             String text = requireString(args, "text");
             plugin.getMessenger().sendVoice(token, text);
             if (!token.equals(chat.userToken())) {
-                plugin.getAgent().recordOutgoing(token.getName(), "[Voice message sent on behalf of " + chat.name() + "] " + text);
+                plugin.getAgent().recordOutgoing(token.getName(), "🎤 " + text);
             }
             return new JSONObject().put("sent", true);
         }));

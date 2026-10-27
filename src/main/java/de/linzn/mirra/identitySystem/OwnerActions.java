@@ -72,7 +72,7 @@ public class OwnerActions {
                 this.plugin.getMessenger().tokenOf(owner, null).ifPresent(token -> {
                     try {
                         this.plugin.getMessenger().sendText(token, text);
-                        this.plugin.getAgent().recordOutgoing(token.getName(), "[Confirmation request sent by Mirra] " + text);
+                        this.plugin.getAgent().recordOutgoing(token.getName(), text);
                     } catch (Exception e) {
                         this.plugin.getPluginLogger().warning("Could not ask owner " + owner.getIdentityName() + ": " + e.getMessage());
                     }

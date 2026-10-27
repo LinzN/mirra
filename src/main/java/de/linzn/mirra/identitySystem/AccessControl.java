@@ -109,7 +109,7 @@ public class AccessControl {
         }
         this.sendTo(target.get(), text);
         /* in the chat history of the approver, so a short "ja" is understood */
-        this.plugin.getAgent().recordOutgoing(target.get().getName(), "[Access request sent by Mirra] " + text);
+        this.plugin.getAgent().recordOutgoing(target.get().getName(), text);
         this.plugin.getPluginLogger().info("Access request of " + user.getIdentityName() + " sent to " + approver.get().getIdentityName());
     }
 

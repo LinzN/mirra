@@ -198,7 +198,8 @@ public class MirraAgent {
         String memoryText = text;
         try {
             AttachmentProcessor.Prepared prepared = this.prepareAttachments(chat, attachments);
-            String userContent = "[" + chat.displayName() + "] " + text;
+            /* no "[name]" prefix: the model copies such prefixes into its answers; who writes is in the instructions */
+            String userContent = text;
             if (!prepared.historyNote().isEmpty()) {
                 userContent = userContent + (text.isEmpty() ? "" : "\n") + prepared.historyNote();
                 memoryText = (text + "\n" + prepared.historyNote()).trim();
@@ -207,7 +208,7 @@ public class MirraAgent {
             String instructions = this.buildInstructions(chat, memoryText);
             JSONArray input = new JSONArray();
             for (MemoryRepository.StoredMessage stored : history) {
-                input.put(new JSONObject().put("role", stored.role()).put("content", stored.content()));
+                input.put(new JSONObject().put("role", stored.role()).put("content", stripLegacyPrefix(stored.content())));
             }
             JSONArray earlier = this.recentFileParts(chat.chatKey());
             if (!earlier.isEmpty()) {
@@ -219,11 +220,11 @@ public class MirraAgent {
             if (prepared.parts().isEmpty()) {
                 input.put(new JSONObject().put("role", "user").put("content", userContent));
             } else {
-                JSONArray content = new JSONArray().put(new JSONObject().put("type", "input_text").put("text", "[" + chat.displayName() + "] " + text));
+                JSONArray content = new JSONArray().put(new JSONObject().put("type", "input_text").put("text", text.isEmpty() ? "(files only)" : text));
                 prepared.parts().forEach(content::put);
                 input.put(new JSONObject().put("role", "user").put("content", content));
             }
-            answer = this.runToolLoop(chat, instructions, input);
+            answer = stripNamePrefix(this.runToolLoop(chat, instructions, input), chat);
             this.rememberFiles(chat.chatKey(), prepared.reusable());
             this.repository.appendMessage(this.config.modelName, chat.chatKey(), "user", userContent);
             this.repository.appendMessage(this.config.modelName, chat.chatKey(), "assistant", answer);
@@ -244,6 +245,57 @@ public class MirraAgent {
         }
         this.maintainMemory(chat, memoryText, answer);
         return answer;
+    }
+
+    /* "[Niklas] ..." of earlier versions and "[Message sent on behalf of ...]" notes */
+    private static final java.util.regex.Pattern LEGACY_PREFIX = java.util.regex.Pattern.compile("^\\[[^\\]\\n]{1,80}]\\s*");
+    private static final java.util.regex.Pattern NAME_PREFIX = java.util.regex.Pattern.compile("^\\s*\\[([^\\]\\n]{1,60})]\\s*:?\\s*");
+
+    /**
+     * Remove a bracket prefix that earlier versions stored in front of messages, so the model does not learn the pattern.
+     */
+    static String stripLegacyPrefix(String content) {
+        if (content == null) {
+            return "";
+        }
+        /* notes about files ("[Image: x]", "[File ...]", "[Voice message ...]") are part of the message */
+        if (content.matches("(?s)^\\[(Image|File|Files|Voice|Video|Audio)\\b.*")) {
+            return content;
+        }
+        String stripped = LEGACY_PREFIX.matcher(content).replaceFirst("");
+        return stripped.isBlank() ? content : stripped;
+    }
+
+    /**
+     * Remove a "[Name]" the model put in front of its answer, e.g. "[Niklas] Nicht vergessen ..." or "[Mirra] ...".
+     */
+    static String stripNamePrefix(String answer, ChatContext chat) {
+        if (answer == null) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = NAME_PREFIX.matcher(answer);
+        if (!matcher.find()) {
+            return answer;
+        }
+        String inside = matcher.group(1).trim().toLowerCase(Locale.ROOT);
+        Set<String> names = new HashSet<>(List.of("mirra", "assistant", "assistent", "ai", "ki"));
+        if (chat != null) {
+            if (chat.displayName() != null) {
+                names.add(chat.displayName().toLowerCase(Locale.ROOT));
+            }
+            names.add(chat.name().toLowerCase(Locale.ROOT));
+            if (chat.identityUser() != null) {
+                names.add(chat.identityUser().getIdentityName().toLowerCase(Locale.ROOT));
+                names.add(chat.identityUser().getCallName().toLowerCase(Locale.ROOT));
+            }
+        }
+        /* without a chat (one-shot texts like reminders) every short name-like prefix is removed */
+        boolean nameLike = chat == null && inside.length() <= 30 && !inside.contains(":");
+        if (!names.contains(inside) && !nameLike) {
+            return answer;
+        }
+        String rest = answer.substring(matcher.end());
+        return rest.isBlank() ? answer : rest;
     }
 
     /**
@@ -498,7 +550,7 @@ public class MirraAgent {
             }
         }
         JSONObject request = this.baseRequest(this.config.textModel, instructions.toString(), task).put("store", false);
-        return this.client.createResponse(request).text();
+        return stripNamePrefix(this.client.createResponse(request).text(), null);
     }
 
     /**
