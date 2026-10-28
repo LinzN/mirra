@@ -57,7 +57,7 @@ public final class MessagingTools {
                 Schema.object()
                         .prop("recipient", string("name of the registered user, see list_users"))
                         .prop("text", string("the message"))
-                        .prop("channel", nullable(enumeration("discord or whatsapp; null for the user's default", List.of("discord", "whatsapp"))))
+                        .prop("channel", nullable(enumeration("discord, whatsapp or voice (speak on a voice device); null for the user's default", List.of("discord", "whatsapp", "voice"))))
                         .build(),
                 anyOf(ADMIN), (chat, args) -> {
             UserToken token = recipient(plugin, requireString(args, "recipient"), optString(args, "channel"));
@@ -66,6 +66,44 @@ public final class MessagingTools {
             plugin.getAgent().recordOutgoing(token.getName(), text);
             plugin.getPluginLogger().info("Message to " + args.getString("recipient") + " on behalf of " + chat.name());
             return new JSONObject().put("sent", true).put("channel", token.getSource().name().toLowerCase());
+        }));
+
+        /* voice devices (smart speakers in the house) */
+        tools.add(new SimpleTool("list_voice_devices",
+                "List the voice devices (smart speakers in the house) with room name and whether they are online.",
+                Schema.empty(), anyOf(HOME_VIEW), (chat, args) -> {
+            JSONArray devices = new JSONArray();
+            for (de.linzn.mirra.voice.MirraVoice.Device device : plugin.getVoice().devices()) {
+                devices.put(new JSONObject().put("id", device.id()).put("name", device.name()).put("online", device.online()));
+            }
+            return new JSONObject().put("devices", devices);
+        }));
+
+        tools.add(new SimpleTool("announce",
+                "Say something out loud on a voice device in the house, or on all of them. Only on request of the person "
+                        + "or as part of a planned task.",
+                Schema.object()
+                        .prop("device", nullable(string("room name or id of the device; null for all online devices")))
+                        .prop("text", string("what to say, short and in spoken language"))
+                        .build(),
+                anyOf(HOME_CONTROL), (chat, args) -> {
+            String text = requireString(args, "text");
+            String wanted = optString(args, "device");
+            List<de.linzn.mirra.voice.MirraVoice.Device> targets = new ArrayList<>();
+            if (wanted == null || wanted.isBlank()) {
+                plugin.getVoice().devices().stream().filter(de.linzn.mirra.voice.MirraVoice.Device::online).forEach(targets::add);
+            } else {
+                targets.add(plugin.getVoice().find(wanted).orElseThrow(() -> new IllegalArgumentException("No voice device '" + wanted + "'")));
+            }
+            JSONArray done = new JSONArray();
+            for (de.linzn.mirra.voice.MirraVoice.Device device : targets) {
+                if (device.online()) {
+                    plugin.getVoice().speak(device.id(), text);
+                    done.put(device.name() == null ? device.id() : device.name());
+                }
+            }
+            plugin.getPluginLogger().info("Announcement on " + done + " on behalf of " + chat.name());
+            return new JSONObject().put("success", !done.isEmpty()).put("spoken_on", done);
         }));
 
         tools.add(new SimpleTool("send_file",

@@ -15,7 +15,8 @@ where it goes, and it contains a risk analysis with the remaining risks and reco
 ## 1. Overview
 
 Mirra is an AI agent that runs inside STEM, the smart home framework of the household. People talk to her on
-Discord (private messages) and WhatsApp (Evolution API). For every message Mirra sends the conversation to the
+Discord (private messages), WhatsApp (Evolution API) and voice devices in the house (smart speakers driven by
+the voice-satellite plugin). For every message Mirra sends the conversation to the
 OpenAI Responses API together with a list of tools. The model decides which tools to call; Mirra executes them
 locally in STEM and returns the results to the model until it answers.
 
@@ -49,6 +50,7 @@ Besides chats, Mirra also acts on her own:
 | Evolution API / RabbitMQ | Messages on the RabbitMQ queues are taken as genuine WhatsApp messages | Anyone who can publish to the queues |
 | OpenAI | Tool calls are executed as requested by the model, within the permissions of the current person | Model output (can be influenced by prompt injection) |
 | STEM | STEM API, database, MQTT broker, cloud | Data coming from devices, MQTT payloads, log lines, health check texts |
+| Voice devices | Device id, after the device proved the shared device key (HMAC challenge) | Spoken content, and everybody who is in the room of the device |
 | Shell / SSH | Commands run as the operating system user of STEM, SSH with its keys | Every host reachable with these keys |
 
 ---
@@ -124,6 +126,8 @@ Protections in the code:
 | | `remember`, `recall`, `forget` | `MEMORY` |
 | | `create_image` | `IMAGES` |
 | | `set_mirra_status` | registered user |
+| Voice devices | `list_voice_devices` | `HOME_VIEW` |
+| | `announce` (speak on one or all devices) | `HOME_CONTROL` |
 | Messaging | `send_file`, `send_voice_message` (to the current chat) | registered user (server files: `SHELL`) |
 | | `send_message`, and `send_file` / `send_voice_message` to other users | `ADMIN` |
 | Tasks | `create_task`, `list_tasks`, `cancel_task` | registered user (others' tasks: `ADMIN`) |
@@ -197,6 +201,9 @@ Likelihood and impact: **L** low, **M** medium, **H** high. Residual risk after 
 | R15 | **Secrets in plain text** in `config.yml` | L | H | File system permissions of the STEM host | Depends on host hardening |
 | R16 | **Owner action confirmed by mistake** (ambiguous "ja", or injected content in the owner's next message) | L | H | New message required, not in automatic turns, description shown before, actions expire | Low |
 | R17 | **Planned tasks keep running with old permissions** after a person loses them | L | M | Task runs with the current permissions of the owner at run time; deleted users' tasks are deactivated | Low |
+| R19 | **Shared voice device**: everybody in the room (visitors, children, a neighbour at the open window) talks with the permissions of the profile the device belongs to | M | H if linked to an owner or admin, else L | New devices are guests and need approval; a tap is needed (no wake word); spoken-answer rule | **High** if a speaker is linked to a profile with `ADMIN`/`SHELL`/`HOME_CONTROL`, low with a separate room profile |
+| R20 | **Voice traffic on the LAN**: audio and answers go unencrypted over TCP; a device in the network can listen in. A stolen speaker contains the device key in its flash | M | M | HMAC-SHA256 challenge (key never sent), only private source addresses by default, one connection per device id | Medium; a leaked key lets an attacker add a fake device, which still needs approval as a new guest |
+| R21 | **Answers read aloud**: private information (messages, reminders, calendar, status) is heard by everybody in the room | M | L | Speakers are never the default channel of a person; `announce` needs `HOME_CONTROL` | Low–medium, depends on the room profile |
 | R18 | **Unavailability**: OpenAI credits or key fail, Mirra cannot help | M | L | Pause with fixed answer, alert to the approver, automatic resume | Low |
 
 ### Highest risks
@@ -228,8 +235,11 @@ Ordered by benefit:
 7. **Secure the accounts** of owners and admins on Discord and WhatsApp with two-factor authentication and
    WhatsApp registration lock.
 8. **Protect `config.yml`**: readable only by the STEM user; rotate the OpenAI key if it may have leaked.
-9. **Review regularly**: `list_users` / `list_permissions` with holders, `list_tasks` for all users,
-    the log lines `Shell by`, `SQL by`, `changed permissions of`, `Owner action`.
+9. **Voice devices**: give each speaker its own room profile with few permissions (no `ADMIN`, `SHELL`,
+   `HOME_CONTROL`), use a long random `server.deviceKey`, keep port 3100 of the voice-satellite plugin closed
+   to the internet and put the speakers into a separate Wi-Fi/VLAN if possible.
+10. **Review regularly**: `list_users` / `list_permissions` with holders, `list_tasks` for all users,
+     the log lines `Shell by`, `SQL by`, `changed permissions of`, `Owner action`.
 
 ---
 

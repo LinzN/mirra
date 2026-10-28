@@ -58,6 +58,7 @@ public class ChatMessenger {
         return switch (token.getSource()) {
             case DISCORD -> this.plugin.getDiscordManager() != null && this.plugin.getDiscordManager().getJda() != null;
             case WHATSAPP -> this.plugin.getWhatsappManager() != null && this.plugin.getWhatsappManager().isEnabled();
+            case VOICE -> this.plugin.getVoice().canSpeak(token.getName());
             default -> false;
         };
     }
@@ -80,13 +81,15 @@ public class ChatMessenger {
             return preferred;
         }
         return tokens.stream().filter(token -> token.getSource() == TokenSource.WHATSAPP && this.canSend(token)).findFirst()
-                .or(() -> tokens.stream().filter(this::canSend).findFirst());
+                .or(() -> tokens.stream().filter(token -> token.getSource() != TokenSource.VOICE && this.canSend(token)).findFirst());
     }
 
     public void sendText(UserToken token, String text) throws MessengerException {
         this.requireSendable(token);
         try {
-            if (token.getSource() == TokenSource.DISCORD) {
+            if (token.getSource() == TokenSource.VOICE) {
+                this.plugin.getVoice().speak(token.getName(), text);
+            } else if (token.getSource() == TokenSource.DISCORD) {
                 this.plugin.getDiscordManager().sendMessage(this.discordChannel(token), text);
             } else {
                 this.plugin.getWhatsappManager().getEvolutionApi().getWebApiProvider().sendTextMessage(this.jid(token), text);
@@ -100,6 +103,9 @@ public class ChatMessenger {
 
     public void sendFile(UserToken token, OutgoingFile file, String caption) throws MessengerException {
         this.requireSendable(token);
+        if (token.getSource() == TokenSource.VOICE) {
+            throw new MessengerException("Voice devices cannot receive files");
+        }
         try {
             if (token.getSource() == TokenSource.DISCORD) {
                 if (file.data().length > DISCORD_MAX_BYTES) {
@@ -131,6 +137,10 @@ public class ChatMessenger {
      */
     public void sendVoice(UserToken token, String text) throws MessengerException {
         this.requireSendable(token);
+        if (token.getSource() == TokenSource.VOICE) {
+            this.plugin.getVoice().speak(token.getName(), text);
+            return;
+        }
         if (!this.config.voiceEnabled) {
             throw new MessengerException("Voice messages are disabled");
         }
@@ -159,7 +169,7 @@ public class ChatMessenger {
 
     private void requireSendable(UserToken token) throws MessengerException {
         if (!this.canSend(token)) {
-            throw new MessengerException("Messages can only be sent to Discord or WhatsApp chats, and the service must be running");
+            throw new MessengerException("Messages can only be sent to Discord, WhatsApp or connected voice devices");
         }
     }
 

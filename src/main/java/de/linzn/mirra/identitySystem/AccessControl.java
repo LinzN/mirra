@@ -160,6 +160,9 @@ public class AccessControl {
         if (token.getSource() == TokenSource.DISCORD) {
             return "Discord: " + (name == null ? "(unbekannter Name)" : name) + " (ID " + token.getName() + ")";
         }
+        if (token.getSource() == TokenSource.VOICE) {
+            return "Sprachgerät: " + (name == null ? token.getName() : name + " (" + token.getName() + ")");
+        }
         String address = token.getName();
         String number = address.endsWith("@s.whatsapp.net") ? "+" + address.substring(0, address.indexOf('@')) : address;
         return "WhatsApp: " + number + (name == null ? "" : " (" + name + ")");

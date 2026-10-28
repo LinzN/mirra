@@ -420,6 +420,12 @@ public class MirraAgent {
         builder.append("## Situation\n");
         builder.append("- Now: ").append(NOW_FORMAT.format(ZonedDateTime.now(this.zone))).append(" (").append(this.zone).append(")\n");
         builder.append("- Channel: ").append(chat.source().name()).append('\n');
+        if (chat.source() == de.linzn.mirra.identitySystem.TokenSource.VOICE) {
+            builder.append("- You are speaking through a smart speaker in the house (").append(chat.displayName())
+                    .append("). Your answer is read aloud: answer briefly in natural spoken language, no emojis, no markdown, "
+                            + "no lists, no links, numbers and units written so they sound right. Whoever stands next to the "
+                            + "speaker may be talking.\n");
+        }
         if (chat.isInternal()) {
             builder.append("- This is an internal request of the STEM system, not a chat with a person.\n");
         } else if (chat.isGuest()) {

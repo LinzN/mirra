@@ -12,6 +12,9 @@
 
 package de.linzn.mirra.identitySystem;
 
+/**
+ * Where a chat channel lives: Discord, WhatsApp, a voice device (smart speaker) or STEM itself.
+ */
 public enum TokenSource {
-    DISCORD, WHATSAPP, INTERNAL
+    DISCORD, WHATSAPP, VOICE, INTERNAL
 }

@@ -26,6 +26,9 @@ See [docs/security/SECURITY.md](docs/security/SECURITY.md) for permissions, data
 - **Sending**: images, files Mirra writes herself, files of the server and voice messages into the chat;
   messages, files and voice messages to other registered users on request
 - **Voice**: text to speech with an OpenAI voice, optionally as answer to every voice message
+- **Voice devices**: smart speakers in the house (e.g. Onju V3 boards in Google Home Minis with the
+  [voice-satellite](https://github.com/LinzN/voice-satellite) plugin) are a chat channel of their own: tap, speak,
+  Mirra answers out loud; announcements on one or all speakers (see [Voice devices](#voice-devices))
 - **Tasks**: Mirra plans tasks for later, on a schedule or on events (e.g. "switch the 3D printer off when the
   print is finished") and carries them out herself (see [Tasks](#tasks))
 - **Watchdog**: Mirra notices failed health checks and errors in the STEM log, analyzes them, fixes what is
@@ -128,6 +131,8 @@ model for a final answer without tools.
 | `send_message`            | `ADMIN`                                      | Text message to another registered user             |
 | `send_file`               | registered users (others: `ADMIN`, server files: `SHELL`) | Sends a file from text, a server path or a URL |
 | `send_voice_message`      | registered users (others: `ADMIN`)      | Speaks a text and sends it as voice message         |
+| `list_voice_devices`      | `HOME_VIEW`                             | Voice devices with room and online state            |
+| `announce`                | `HOME_CONTROL`                          | Says a text on one or all voice devices             |
 | `set_mirra_status`        | no guests                                    | Sets the Discord activity and a WhatsApp status     |
 
 Higher permissions include lower ones (see [Permissions](#permissions-in-the-chat)). `SHELL` is separate and not
@@ -260,6 +265,29 @@ Long term memory owners `identity:<name>` and `token:<channel>:<address>` become
 memories get a guest profile. Duplicate names get a suffix, unknown permissions and channels are skipped and
 logged, old permission names are mapped to the new ones. The old tables are not changed and are no longer used;
 delete them once everything works.
+
+---
+
+## Voice devices
+
+A voice device (smart speaker) is a chat channel of the source `VOICE`, its address is the device id
+(e.g. `mirra-voice-a1b2c3`). Mirra itself only offers the speech interface `MirraVoice`; the devices are driven
+by a separate plugin such as [voice-satellite](https://github.com/LinzN/voice-satellite), which registers a
+speaker and hands recorded speech to Mirra.
+
+- **A new device is a guest.** The first time somebody speaks on it, the approver gets the usual access request
+  ("Sprachgerät: Küche (mirra-voice-a1b2c3)") and the device says the pending message. Until then it answers
+  nothing.
+- **Whoever stands next to the speaker talks with the permissions of its profile.** Do not link a speaker to
+  the owner's profile. Create a profile for the house or the room instead ("Mirra, leg ein Profil Küche an und
+  ordne ihm das Sprachgerät mirra-voice-a1b2c3 zu") and give it only what a shared device should do, e.g.
+  `ASSISTANT`, `REMINDERS`, `HOME_LIGHTS`.
+- **Answers are spoken**: Mirra gets a rule for short, natural spoken answers without emojis, lists or links.
+  If the answer ends with a question, the device listens again right away.
+- **Speaking on a device**: `announce` ("Sag in der Küche, dass das Essen fertig ist"), planned tasks
+  ("um 7 Uhr im Schlafzimmer: Guten Morgen und das Wetter"), reminders and messages to a profile whose only or
+  preferred channel is a speaker. A speaker is never chosen as the default channel of a person otherwise.
+- **Speech to text** uses `openAI.transcriptionModel`, **text to speech** the `voice.*` settings.
 
 ---
 

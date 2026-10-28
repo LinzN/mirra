@@ -140,8 +140,8 @@ public final class UserTools {
                 Schema.object()
                         .prop("name", string("profile that gets the channel"))
                         .prop("from_profile", nullable(string("profile whose channels move to the user (usually a guest profile)")))
-                        .prop("channel", nullable(enumeration("channel, if address is given", List.of("discord", "whatsapp"))))
-                        .prop("address", nullable(string("Discord user id, or WhatsApp number with country code (e.g. 4917612345678) or JID")))
+                        .prop("channel", nullable(enumeration("channel, if address is given", List.of("discord", "whatsapp", "voice"))))
+                        .prop("address", nullable(string("Discord user id, WhatsApp number with country code (e.g. 4917612345678) or JID, or the id of a voice device (e.g. mirra-a1b2c3)")))
                         .build(),
                 anyOf(ADMIN), (chat, args) -> {
             IdentityUser user = byName(users, requireString(args, "name"));
@@ -168,7 +168,7 @@ public final class UserTools {
                 }
                 TokenSource source = TokenSource.valueOf(channel.toUpperCase(Locale.ROOT));
                 String address = address(source, rawAddress);
-                pending = plugin.getOwnerActions().request(chat, (source == TokenSource.DISCORD ? "Discord-ID " : "WhatsApp ")
+                pending = plugin.getOwnerActions().request(chat, (source == TokenSource.DISCORD ? "Discord-ID " : source == TokenSource.VOICE ? "Sprachgerät " : "WhatsApp ")
                         + address + " dem Nutzer '" + user.getIdentityName() + "' zuordnen", () -> {
                     users.linkChannel(users.findById(user.getId()).orElseThrow(() -> new IllegalStateException("Profile is gone")), source, address);
                     reloadMemory(plugin);
@@ -182,7 +182,7 @@ public final class UserTools {
                 "Remove a chat channel from a user profile. Needs the confirmation of an owner (confirm_owner_action).",
                 Schema.object()
                         .prop("name", string("profile name"))
-                        .prop("channel", enumeration("channel", List.of("discord", "whatsapp")))
+                        .prop("channel", enumeration("channel", List.of("discord", "whatsapp", "voice")))
                         .prop("address", nullable(string("address if the user has several channels of this kind")))
                         .build(),
                 anyOf(ADMIN), (chat, args) -> {

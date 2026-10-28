@@ -83,6 +83,7 @@ public class MirraPlugin extends STEMPlugin {
     private AccessControl accessControl;
     private OwnerActions ownerActions;
     private Watchdog watchdog;
+    private de.linzn.mirra.voice.MirraVoice voice;
 
     public MirraPlugin() {
         mirraPlugin = this;
@@ -165,6 +166,7 @@ public class MirraPlugin extends STEMPlugin {
         keeper.setReasoningEffort(this.mirraConfig.memoryReasoningEffort);
         this.imageService = new ImageService(this, client, this.mirraConfig.imageModel);
         this.messenger = new ChatMessenger(this, this.mirraConfig, client);
+        this.voice = new de.linzn.mirra.voice.MirraVoice(this, this.mirraConfig, client);
         this.attachmentProcessor = new AttachmentProcessor(client, this.getPluginLogger(), this.mirraConfig.transcriptionModel, this.mirraConfig.attachmentMaxSizeMB);
 
         ToolRegistry tools = new ToolRegistry(this.getPluginLogger());
@@ -398,6 +400,13 @@ public class MirraPlugin extends STEMPlugin {
         } catch (Exception e) {
             this.getPluginLogger().warning("Could not notify the approver: " + e.getMessage());
         }
+    }
+
+    /**
+     * Speech interface for voice devices; device plugins register their speaker here.
+     */
+    public de.linzn.mirra.voice.MirraVoice getVoice() {
+        return voice;
     }
 
     public OwnerActions getOwnerActions() {
