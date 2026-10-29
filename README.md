@@ -459,6 +459,7 @@ facts (`memory.legacyImported` is set afterwards).
 | `voice.transcriptionPrompt`        | `Jemand spricht mit Mirra, ...` | Context and words the speech may contain (names, rooms, devices) |
 | `voice.engine`                     | `realtime`                  | `realtime`: a Realtime model reads the text aloud; `speech`: `/audio/speech` |
 | `voice.realtimeModel`              | `gpt-realtime-2.1-mini`     | Realtime model for the voice                 |
+| `voice.sessionMinutes`             | `15`                        | Voice devices: a conversation ends after this many idle minutes, the next question starts without the earlier history; `0` keeps the history like a chat |
 | `voice.model`                      | `gpt-4o-mini-tts`           | Speech endpoint model, used as fallback (shut down by OpenAI on 2027-01-06) |
 | `voice.voice`                      | `nova`                      | Voice; best with Realtime: `marin`, `cedar` (voices Realtime does not have become `marin`) |
 | `voice.instructions`               | `Speak in German, ...`      | How the voice should sound                   |

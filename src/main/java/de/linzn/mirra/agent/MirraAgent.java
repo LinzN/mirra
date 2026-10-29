@@ -118,6 +118,17 @@ public class MirraAgent {
 
     private static final int MAX_RECENT_FILES = 5;
 
+    /*
+     * Conversation on a voice device: only the messages since the device was last idle for
+     * voice.sessionMinutes are sent as history, so a question the next day does not carry yesterday's talk.
+     * Kept for every chat key (announcements to a device count as activity), used for VOICE chats only.
+     * After a restart every voice chat starts fresh.
+     */
+    private final Map<String, Session> sessions = new ConcurrentHashMap<>();
+
+    private record Session(long afterId, Instant lastActivity) {
+    }
+
     /**
      * @param background runs memory maintenance asynchronously, e.g. the STEM scheduler
      */
@@ -204,7 +215,12 @@ public class MirraAgent {
                 userContent = userContent + (text.isEmpty() ? "" : "\n") + prepared.historyNote();
                 memoryText = (text + "\n" + prepared.historyNote()).trim();
             }
+            boolean voice = chat.source() == de.linzn.mirra.identitySystem.TokenSource.VOICE;
+            Session session = this.session(chat.chatKey(), voice);
             List<MemoryRepository.StoredMessage> history = this.repository.recentMessages(this.config.modelName, chat.chatKey(), this.config.historyMessages);
+            if (voice && session != null) {
+                history = history.stream().filter(stored -> stored.id() > session.afterId()).toList();
+            }
             String instructions = this.buildInstructions(chat, memoryText);
             JSONArray input = new JSONArray();
             for (MemoryRepository.StoredMessage stored : history) {
@@ -228,6 +244,7 @@ public class MirraAgent {
             this.rememberFiles(chat.chatKey(), prepared.reusable());
             this.repository.appendMessage(this.config.modelName, chat.chatKey(), "user", userContent);
             this.repository.appendMessage(this.config.modelName, chat.chatKey(), "assistant", answer);
+            this.touchSession(chat.chatKey());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return ERROR_ANSWER;
@@ -303,7 +320,36 @@ public class MirraAgent {
      * so she knows the context when the receiver answers.
      */
     public void recordOutgoing(String chatKey, String content) {
+        this.session(chatKey, false);
         this.repository.appendMessage(this.config.modelName, chatKey, "assistant", content);
+        this.touchSession(chatKey);
+    }
+
+    /**
+     * The current conversation of a chat; starts a new one if the chat was idle longer than voice.sessionMinutes.
+     *
+     * @param dropFiles forget the files of the old conversation when a new one starts
+     * @return the conversation, or null if conversations do not expire (voice.sessionMinutes 0)
+     */
+    private Session session(String chatKey, boolean dropFiles) {
+        if (this.config.voiceSessionMinutes <= 0) {
+            return null;
+        }
+        Instant now = Instant.now();
+        return this.sessions.compute(chatKey, (key, current) -> {
+            if (current != null && current.lastActivity().plusSeconds(this.config.voiceSessionMinutes * 60L).isAfter(now)) {
+                return current;
+            }
+            List<MemoryRepository.StoredMessage> last = this.repository.recentMessages(this.config.modelName, key, 1);
+            if (dropFiles) {
+                this.recentFiles.remove(key);
+            }
+            return new Session(last.isEmpty() ? 0 : last.get(last.size() - 1).id(), now);
+        });
+    }
+
+    private void touchSession(String chatKey) {
+        this.sessions.computeIfPresent(chatKey, (key, current) -> new Session(current.afterId(), Instant.now()));
     }
 
     private AttachmentProcessor.Prepared prepareAttachments(ChatContext chat, List<Attachment> files) {
@@ -436,7 +482,8 @@ public class MirraAgent {
         }
         builder.append('\n').append(profileSection(chat)).append(this.memorySection(chat, message));
         MemoryRepository.Summary summary = this.repository.loadSummary(this.config.modelName, chat.chatKey());
-        if (!summary.text().isBlank()) {
+        /* a voice device talks in short conversations; the summary of all earlier ones would carry old topics */
+        if (!summary.text().isBlank() && (chat.source() != de.linzn.mirra.identitySystem.TokenSource.VOICE || this.config.voiceSessionMinutes <= 0)) {
             builder.append("## Earlier in this chat\n").append(summary.text().trim()).append("\n\n");
         }
         builder.append(RULES);

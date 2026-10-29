@@ -63,6 +63,7 @@ public final class MirraConfig {
     public final String transcriptionLanguage;
     public final String transcriptionPrompt;
     public final String voiceRealtimeModel;
+    public final int voiceSessionMinutes;
 
     public final boolean shellEnabled;
     public final String shellSshUser;
@@ -139,6 +140,7 @@ public final class MirraConfig {
                 "Jemand spricht mit Mirra, der Smart-Home-Assistentin. Begriffe: Mirra, STEM, Licht, Lampe, Steckdose, "
                         + "Heizung, Klimaanlage, 3D-Drucker, Wetter, Erinnerung, Küche, Wohnzimmer, Schlafzimmer, Labor.");
         this.voiceRealtimeModel = string(config, "voice.realtimeModel", "gpt-realtime-2.1-mini");
+        this.voiceSessionMinutes = clamp(integer(config, "voice.sessionMinutes", 15), 0, 1440);
 
         this.shellEnabled = bool(config, "agent.shell.enabled", true);
         this.shellSshUser = string(config, "agent.shell.sshUser", "root");
