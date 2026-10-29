@@ -84,6 +84,7 @@ public class MirraPlugin extends STEMPlugin {
     private OwnerActions ownerActions;
     private Watchdog watchdog;
     private de.linzn.mirra.voice.MirraVoice voice;
+    private de.linzn.mirra.voice.SpeechService speech;
 
     public MirraPlugin() {
         mirraPlugin = this;
@@ -166,6 +167,7 @@ public class MirraPlugin extends STEMPlugin {
         keeper.setReasoningEffort(this.mirraConfig.memoryReasoningEffort);
         this.imageService = new ImageService(this, client, this.mirraConfig.imageModel);
         this.messenger = new ChatMessenger(this, this.mirraConfig, client);
+        this.speech = new de.linzn.mirra.voice.SpeechService(client, this.mirraConfig, this.getPluginLogger());
         this.voice = new de.linzn.mirra.voice.MirraVoice(this, this.mirraConfig, client);
         this.attachmentProcessor = new AttachmentProcessor(client, this.getPluginLogger(), this.mirraConfig.transcriptionModel, this.mirraConfig.attachmentMaxSizeMB);
 
@@ -405,6 +407,10 @@ public class MirraPlugin extends STEMPlugin {
     /**
      * Speech interface for voice devices; device plugins register their speaker here.
      */
+    public de.linzn.mirra.voice.SpeechService getSpeech() {
+        return speech;
+    }
+
     public de.linzn.mirra.voice.MirraVoice getVoice() {
         return voice;
     }

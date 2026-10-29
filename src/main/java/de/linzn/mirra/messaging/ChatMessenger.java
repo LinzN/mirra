@@ -146,8 +146,7 @@ public class ChatMessenger {
         }
         byte[] audio;
         try {
-            audio = this.client.speech(this.config.voiceModel, this.config.voiceName, this.config.voiceInstructions,
-                    text.length() > 4000 ? text.substring(0, 4000) : text, "opus");
+            audio = this.plugin.getSpeech().wav(text);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new MessengerException("Interrupted");
@@ -156,7 +155,7 @@ public class ChatMessenger {
         }
         try {
             if (token.getSource() == TokenSource.DISCORD) {
-                this.sendFile(token, new OutgoingFile("Mirra.ogg", "audio/ogg", audio), null);
+                this.sendFile(token, new OutgoingFile("Mirra.wav", "audio/wav", audio), null);
             } else {
                 this.plugin.getWhatsappManager().getEvolutionApi().getWebApiProvider().sendVoiceMessage(this.jid(token), audio);
             }

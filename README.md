@@ -25,7 +25,8 @@ See [docs/security/SECURITY.md](docs/security/SECURITY.md) for permissions, data
   WhatsApp (see [Files](#files))
 - **Sending**: images, files Mirra writes herself, files of the server and voice messages into the chat;
   messages, files and voice messages to other registered users on request
-- **Voice**: text to speech with an OpenAI voice, optionally as answer to every voice message
+- **Voice**: text to speech with an OpenAI Realtime voice (the text is read aloud word for word and checked
+  against the transcript), optionally as answer to every voice message
 - **Voice devices**: smart speakers in the house (e.g. Onju V3 boards in Google Home Minis with the
   [voice-satellite](https://github.com/LinzN/voice-satellite) plugin) are a chat channel of their own: tap, speak,
   Mirra answers out loud; announcements on one or all speakers (see [Voice devices](#voice-devices))
@@ -454,8 +455,10 @@ facts (`memory.legacyImported` is set afterwards).
 | `attachments.keepMinutes`          | `30`                        | How long files are sent again for follow-up questions, `0` to disable |
 | `voice.enabled`                    | `true`                      | Allow voice messages from Mirra              |
 | `voice.replyToVoice`               | `false`                     | Answer voice messages with a voice message   |
-| `voice.model`                      | `gpt-4o-mini-tts`           | Text to speech model                         |
-| `voice.voice`                      | `nova`                      | Voice, e.g. `nova`, `coral`, `shimmer`       |
+| `voice.engine`                     | `realtime`                  | `realtime`: a Realtime model reads the text aloud; `speech`: `/audio/speech` |
+| `voice.realtimeModel`              | `gpt-realtime-2.1-mini`     | Realtime model for the voice                 |
+| `voice.model`                      | `gpt-4o-mini-tts`           | Speech endpoint model, used as fallback (shut down by OpenAI on 2027-01-06) |
+| `voice.voice`                      | `nova`                      | Voice; best with Realtime: `marin`, `cedar` (voices Realtime does not have become `marin`) |
 | `voice.instructions`               | `Speak in German, ...`      | How the voice should sound                   |
 | `agent.shell.enabled`              | `true`                      | Offer `shell_run` to users with `SHELL`      |
 | `agent.shell.sshUser`              | `root`                      | Default SSH user                             |

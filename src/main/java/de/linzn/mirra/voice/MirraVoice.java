@@ -38,7 +38,6 @@ public final class MirraVoice {
      * Sample rate of {@link #synthesize}: PCM 16 bit little endian mono.
      */
     public static final int SPEECH_SAMPLE_RATE = 24000;
-    private static final int MAX_SPEECH_CHARS = 4000;
 
     private final MirraPlugin plugin;
     private final MirraConfig config;
@@ -152,8 +151,7 @@ public final class MirraVoice {
      * @return PCM 16 bit little endian mono with {@link #SPEECH_SAMPLE_RATE}
      */
     public byte[] synthesize(String text) throws Exception {
-        String clean = text.length() > MAX_SPEECH_CHARS ? text.substring(0, MAX_SPEECH_CHARS) : text;
-        return this.client.speech(this.config.voiceModel, this.config.voiceName, this.config.voiceInstructions, clean, "pcm");
+        return this.plugin.getSpeech().pcm(text);
     }
 
     /**

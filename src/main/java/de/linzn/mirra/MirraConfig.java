@@ -59,6 +59,8 @@ public final class MirraConfig {
     public final String voiceModel;
     public final String voiceName;
     public final String voiceInstructions;
+    public final String voiceEngine;
+    public final String voiceRealtimeModel;
 
     public final boolean shellEnabled;
     public final String shellSshUser;
@@ -127,6 +129,9 @@ public final class MirraConfig {
         this.voiceModel = string(config, "voice.model", "gpt-4o-mini-tts");
         this.voiceName = string(config, "voice.voice", "nova");
         this.voiceInstructions = string(config, "voice.instructions", "Speak in German, young, cheerful and a bit cheeky.");
+        /* realtime: gpt-realtime-* reads the text aloud; speech: /audio/speech (gpt-4o-mini-tts, ends 2027-01-06) */
+        this.voiceEngine = string(config, "voice.engine", "realtime");
+        this.voiceRealtimeModel = string(config, "voice.realtimeModel", "gpt-realtime-2.1-mini");
 
         this.shellEnabled = bool(config, "agent.shell.enabled", true);
         this.shellSshUser = string(config, "agent.shell.sshUser", "root");

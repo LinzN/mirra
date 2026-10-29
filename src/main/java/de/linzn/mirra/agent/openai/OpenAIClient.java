@@ -283,6 +283,142 @@ public class OpenAIClient {
         return response.body();
     }
 
+    /**
+     * Speech with a Realtime model over a WebSocket (wss://.../realtime). The model gets the text as a user
+     * message and the instruction to read it aloud word for word.
+     *
+     * @return PCM 16 bit little endian mono with 24 kHz, and the transcript of what the model actually said
+     */
+    public RealtimeSpeech realtimeSpeech(String model, String voice, String instructions, String text)
+            throws OpenAIException, InterruptedException {
+        this.checkPaused();
+        String wsBase = this.baseUrl.replaceFirst("^http", "ws");
+        URI uri = URI.create(wsBase + "/realtime?model=" + java.net.URLEncoder.encode(model, StandardCharsets.UTF_8));
+        ByteArrayOutputStream audio = new ByteArrayOutputStream();
+        StringBuilder transcript = new StringBuilder();
+        java.util.concurrent.CompletableFuture<Void> done = new java.util.concurrent.CompletableFuture<>();
+
+        java.net.http.WebSocket.Listener listener = new java.net.http.WebSocket.Listener() {
+            private final StringBuilder frame = new StringBuilder();
+
+            @Override
+            public java.util.concurrent.CompletionStage<?> onText(java.net.http.WebSocket webSocket, CharSequence data, boolean last) {
+                this.frame.append(data);
+                if (last) {
+                    String message = this.frame.toString();
+                    this.frame.setLength(0);
+                    try {
+                        handle(webSocket, new JSONObject(message));
+                    } catch (Exception e) {
+                        done.completeExceptionally(e);
+                    }
+                }
+                webSocket.request(1);
+                return null;
+            }
+
+            private void handle(java.net.http.WebSocket webSocket, JSONObject event) {
+                switch (event.optString("type")) {
+                    case "response.output_audio.delta", "response.audio.delta" ->
+                            audio.writeBytes(java.util.Base64.getDecoder().decode(event.optString("delta", "")));
+                    case "response.output_audio_transcript.delta", "response.audio_transcript.delta" ->
+                            transcript.append(event.optString("delta", ""));
+                    case "response.done" -> {
+                        JSONObject response = event.optJSONObject("response");
+                        String status = response == null ? "completed" : response.optString("status", "completed");
+                        if (!"completed".equals(status)) {
+                            JSONObject details = response.optJSONObject("status_details");
+                            JSONObject error = details == null ? null : details.optJSONObject("error");
+                            done.completeExceptionally(new OpenAIException(0, "Realtime response " + status
+                                    + (error != null ? ": " + error.optString("message") : ""),
+                                    error != null ? error.optString("code", null) : null));
+                        } else {
+                            done.complete(null);
+                        }
+                    }
+                    case "error" -> {
+                        JSONObject error = event.optJSONObject("error");
+                        done.completeExceptionally(new OpenAIException(0,
+                                error == null ? "Realtime error" : error.optString("message", "Realtime error"),
+                                error == null ? null : error.optString("code", null)));
+                    }
+                    default -> {
+                    }
+                }
+            }
+
+            @Override
+            public void onError(java.net.http.WebSocket webSocket, Throwable error) {
+                done.completeExceptionally(error);
+            }
+
+            @Override
+            public java.util.concurrent.CompletionStage<?> onClose(java.net.http.WebSocket webSocket, int statusCode, String reason) {
+                done.completeExceptionally(new OpenAIException(statusCode, "Realtime connection closed: " + reason));
+                return null;
+            }
+        };
+
+        java.net.http.WebSocket socket;
+        try {
+            socket = this.httpClient.newWebSocketBuilder()
+                    .header("Authorization", "Bearer " + this.apiKey)
+                    .connectTimeout(Duration.ofSeconds(15))
+                    .buildAsync(uri, listener)
+                    .get(20, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof java.net.http.WebSocketHandshakeException handshake) {
+                int code = handshake.getResponse().statusCode();
+                Object body = handshake.getResponse().body();
+                String bodyText = body instanceof byte[] bytes ? new String(bytes, StandardCharsets.UTF_8) : String.valueOf(body);
+                OpenAIException error = new OpenAIException(code, errorMessage(bodyText), errorCode(bodyText));
+                if (error.isQuotaExceeded() || error.isAuthError()) {
+                    this.notifyError(error);
+                }
+                throw error;
+            }
+            throw new OpenAIException(0, "Realtime connection failed: " + cause.getMessage());
+        }
+        try {
+            JSONObject session = new JSONObject()
+                    .put("type", "realtime")
+                    .put("output_modalities", new JSONArray().put("audio"))
+                    .put("instructions", instructions)
+                    .put("audio", new JSONObject().put("output", new JSONObject()
+                            .put("format", new JSONObject().put("type", "audio/pcm").put("rate", 24000))
+                            .put("voice", voice)));
+            socket.sendText(new JSONObject().put("type", "session.update").put("session", session).toString(), true).join();
+            JSONObject item = new JSONObject().put("type", "message").put("role", "user")
+                    .put("content", new JSONArray().put(new JSONObject().put("type", "input_text").put("text", text)));
+            socket.sendText(new JSONObject().put("type", "conversation.item.create").put("item", item).toString(), true).join();
+            socket.sendText(new JSONObject().put("type", "response.create").toString(), true).join();
+            done.get(this.timeout.toSeconds(), java.util.concurrent.TimeUnit.SECONDS);
+        } catch (java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof OpenAIException error) {
+                if (error.isQuotaExceeded() || error.isAuthError()) {
+                    this.notifyError(error);
+                }
+                throw error;
+            }
+            throw new OpenAIException(0, "Realtime speech failed: " + (cause == null ? e.getMessage() : cause.getMessage()));
+        } catch (java.util.concurrent.TimeoutException e) {
+            throw new OpenAIException(0, "Realtime speech timed out");
+        } finally {
+            socket.sendClose(java.net.http.WebSocket.NORMAL_CLOSURE, "done");
+        }
+        this.onSuccess();
+        return new RealtimeSpeech(audio.toByteArray(), transcript.toString());
+    }
+
+    /**
+     * @param pcm        PCM 16 bit little endian mono, 24 kHz
+     * @param transcript what the model said
+     */
+    public record RealtimeSpeech(byte[] pcm, String transcript) {
+    }
+
     private static void writeField(ByteArrayOutputStream body, String boundary, String name, String value) {
         String part = "--" + boundary + "\r\n"
                 + "Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n"
