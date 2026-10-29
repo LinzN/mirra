@@ -228,10 +228,25 @@ public class OpenAIClient {
      * @return the transcribed text
      */
     public String transcribe(String model, String fileName, String mimeType, byte[] data) throws OpenAIException, InterruptedException {
+        return this.transcribe(model, fileName, mimeType, data, null, null);
+    }
+
+    /**
+     * @param language ISO-639-1 code like "de", improves accuracy and speed; null to detect it
+     * @param prompt   context and vocabulary (names, terms) that the speech may contain; null for none
+     */
+    public String transcribe(String model, String fileName, String mimeType, byte[] data, String language, String prompt)
+            throws OpenAIException, InterruptedException {
         String boundary = "----mirra" + UUID.randomUUID().toString().replace("-", "");
         ByteArrayOutputStream body = new ByteArrayOutputStream();
         writeField(body, boundary, "model", model);
         writeField(body, boundary, "response_format", "json");
+        if (language != null && !language.isBlank()) {
+            writeField(body, boundary, "language", language.trim());
+        }
+        if (prompt != null && !prompt.isBlank()) {
+            writeField(body, boundary, "prompt", prompt);
+        }
         String header = "--" + boundary + "\r\n"
                 + "Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName.replace("\"", "") + "\"\r\n"
                 + "Content-Type: " + (mimeType == null ? "application/octet-stream" : mimeType) + "\r\n\r\n";

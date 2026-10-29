@@ -85,6 +85,17 @@ public class AttachmentProcessor {
         }
     }
 
+    private volatile String transcriptionLanguage;
+    private volatile String transcriptionPrompt;
+
+    /**
+     * Language and vocabulary hints for the transcription of voice messages.
+     */
+    public void setTranscriptionHints(String language, String prompt) {
+        this.transcriptionLanguage = language;
+        this.transcriptionPrompt = prompt;
+    }
+
     public AttachmentProcessor(OpenAIClient client, StemLogger logger, String transcriptionModel, int maxSizeMB) {
         this.client = client;
         this.logger = logger;
@@ -210,7 +221,8 @@ public class AttachmentProcessor {
             fileName = "audio." + (attachment.mimeType() != null && attachment.mimeType().contains("mpeg") ? "mp3"
                     : attachment.mimeType() != null && attachment.mimeType().contains("mp4") ? "m4a" : "ogg");
         }
-        return this.client.transcribe(this.transcriptionModel, fileName, attachment.mimeType(), attachment.data()).trim();
+        return this.client.transcribe(this.transcriptionModel, fileName, attachment.mimeType(), attachment.data(),
+                this.transcriptionLanguage, this.transcriptionPrompt).trim();
     }
 
     private static boolean isImage(String mime, String extension) {

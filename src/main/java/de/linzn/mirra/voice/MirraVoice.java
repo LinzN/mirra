@@ -195,7 +195,8 @@ public final class MirraVoice {
         }
         String transcript;
         try {
-            transcript = this.client.transcribe(this.config.transcriptionModel, "speech.wav", "audio/wav", wav);
+            transcript = this.client.transcribe(this.config.transcriptionModel, "speech.wav", "audio/wav", wav,
+                    this.config.transcriptionLanguage, this.config.transcriptionPrompt);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return new Answer("ERROR", "", "");

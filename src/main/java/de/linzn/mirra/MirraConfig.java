@@ -60,6 +60,8 @@ public final class MirraConfig {
     public final String voiceName;
     public final String voiceInstructions;
     public final String voiceEngine;
+    public final String transcriptionLanguage;
+    public final String transcriptionPrompt;
     public final String voiceRealtimeModel;
 
     public final boolean shellEnabled;
@@ -131,6 +133,11 @@ public final class MirraConfig {
         this.voiceInstructions = string(config, "voice.instructions", "Speak in German, young, cheerful and a bit cheeky.");
         /* realtime: gpt-realtime-* reads the text aloud; speech: /audio/speech (gpt-4o-mini-tts, ends 2027-01-06) */
         this.voiceEngine = string(config, "voice.engine", "realtime");
+        /* speech to text: language and vocabulary hints, e.g. the name Mirra and smart home terms */
+        this.transcriptionLanguage = string(config, "voice.transcriptionLanguage", "de");
+        this.transcriptionPrompt = string(config, "voice.transcriptionPrompt",
+                "Jemand spricht mit Mirra, der Smart-Home-Assistentin. Begriffe: Mirra, STEM, Licht, Lampe, Steckdose, "
+                        + "Heizung, Klimaanlage, 3D-Drucker, Wetter, Erinnerung, Küche, Wohnzimmer, Schlafzimmer, Labor.");
         this.voiceRealtimeModel = string(config, "voice.realtimeModel", "gpt-realtime-2.1-mini");
 
         this.shellEnabled = bool(config, "agent.shell.enabled", true);

@@ -455,6 +455,8 @@ facts (`memory.legacyImported` is set afterwards).
 | `attachments.keepMinutes`          | `30`                        | How long files are sent again for follow-up questions, `0` to disable |
 | `voice.enabled`                    | `true`                      | Allow voice messages from Mirra              |
 | `voice.replyToVoice`               | `false`                     | Answer voice messages with a voice message   |
+| `voice.transcriptionLanguage`      | `de`                        | Language of voice messages and voice devices (better recognition) |
+| `voice.transcriptionPrompt`        | `Jemand spricht mit Mirra, ...` | Context and words the speech may contain (names, rooms, devices) |
 | `voice.engine`                     | `realtime`                  | `realtime`: a Realtime model reads the text aloud; `speech`: `/audio/speech` |
 | `voice.realtimeModel`              | `gpt-realtime-2.1-mini`     | Realtime model for the voice                 |
 | `voice.model`                      | `gpt-4o-mini-tts`           | Speech endpoint model, used as fallback (shut down by OpenAI on 2027-01-06) |

@@ -170,6 +170,7 @@ public class MirraPlugin extends STEMPlugin {
         this.speech = new de.linzn.mirra.voice.SpeechService(client, this.mirraConfig, this.getPluginLogger());
         this.voice = new de.linzn.mirra.voice.MirraVoice(this, this.mirraConfig, client);
         this.attachmentProcessor = new AttachmentProcessor(client, this.getPluginLogger(), this.mirraConfig.transcriptionModel, this.mirraConfig.attachmentMaxSizeMB);
+        this.attachmentProcessor.setTranscriptionHints(this.mirraConfig.transcriptionLanguage, this.mirraConfig.transcriptionPrompt);
 
         ToolRegistry tools = new ToolRegistry(this.getPluginLogger());
         tools.registerAll(StemTools.create(this, this.mirraConfig));
