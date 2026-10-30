@@ -20,7 +20,6 @@ import de.linzn.stem.api.mqtt.MqttSubscription;
 import de.linzn.stem.api.system.LogEntry;
 import de.linzn.stem.modules.databaseModule.DataContainer;
 import de.linzn.stem.modules.informationModule.InformationBlock;
-import de.linzn.stem.utils.ProcessOutput;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -43,7 +42,6 @@ import static de.linzn.mirra.identitySystem.AiPermissions.*;
 public final class ControlTools {
 
     private static final int MAX_SQL_ROWS = 200;
-    private static final int MAX_OUTPUT_LINES = 300;
 
     private ControlTools() {
     }
@@ -248,80 +246,7 @@ public final class ControlTools {
             return new JSONObject(plugin.getWatchdog().status()).put("enabled", config.autonomyEnabled);
         }));
 
-        /* shell */
-        tools.add(new SimpleTool("shell_run",
-                "Run a shell command on the STEM server, or with 'host' via SSH on another machine (key based login of the "
-                        + "STEM user, no password prompts). Returns exit code and output. Ask before commands that change or "
-                        + "delete something, restart services or machines, unless the person clearly asked for exactly that.",
-                Schema.object()
-                        .prop("command", string("shell command, e.g. 'df -h' or 'systemctl status nginx'"))
-                        .prop("host", nullable(string("SSH host name or IP; null to run on the STEM server")))
-                        .prop("user", nullable(string("SSH user; null for the configured default")))
-                        .prop("port", nullable(integer("SSH port; null for the configured default")))
-                        .prop("timeout_seconds", nullable(integer("timeout, default from the configuration")))
-                        .build(),
-                chat -> config.shellEnabled && chat.has(SHELL), (chat, args) -> {
-            String command = requireString(args, "command");
-            String host = optString(args, "host");
-            Integer timeoutArg = optInt(args, "timeout_seconds");
-            int timeout = timeoutArg == null ? config.shellTimeoutSeconds : Math.max(1, Math.min(3600, timeoutArg));
-            List<String> process = new ArrayList<>();
-            if (host != null) {
-                String user = Optional.ofNullable(optString(args, "user")).orElse(config.shellSshUser);
-                Integer portArg = optInt(args, "port");
-                int port = portArg == null ? config.shellSshPort : portArg;
-                if (!safeArgument(host) || !safeArgument(user)) {
-                    throw new IllegalArgumentException("Invalid host or user");
-                }
-                if (!config.shellAllowedHosts.isEmpty() && !config.shellAllowedHosts.contains(host.toLowerCase(Locale.ROOT))) {
-                    throw new IllegalArgumentException("Host not allowed, allowed are " + config.shellAllowedHosts);
-                }
-                process.addAll(List.of("ssh", "-p", String.valueOf(port), "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
-                        user + "@" + host, command));
-            } else {
-                process.addAll(List.of("/bin/sh", "-c", command));
-            }
-            plugin.getPluginLogger().info("Shell by " + chat.name() + (host == null ? "" : " on " + host) + ": " + command);
-            return runProcess(process, timeout);
-        }));
         return tools;
-    }
-
-    private static JSONObject runProcess(List<String> command, int timeoutSeconds) throws Exception {
-        ProcessBuilder builder = new ProcessBuilder(command);
-        builder.redirectErrorStream(true);
-        Process process = builder.start();
-        try {
-            process.getOutputStream().close();
-            ProcessOutput output = ProcessOutput.drain(process, "Mirra-Shell");
-            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-            if (!finished) {
-                process.descendants().forEach(ProcessHandle::destroyForcibly);
-                process.destroyForcibly();
-            }
-            output.awaitCompletion(5, TimeUnit.SECONDS);
-            List<String> lines = output.getLines();
-            boolean truncated = lines.size() > MAX_OUTPUT_LINES;
-            if (truncated) {
-                lines = lines.subList(lines.size() - MAX_OUTPUT_LINES, lines.size());
-            }
-            JSONObject result = new JSONObject().put("finished", finished).put("output", new JSONArray(lines));
-            if (finished) {
-                result.put("exit_code", process.exitValue());
-            } else {
-                result.put("error", "Timeout after " + timeoutSeconds + " s, process killed");
-            }
-            if (truncated) {
-                result.put("note", "Only the last " + MAX_OUTPUT_LINES + " lines");
-            }
-            return result;
-        } finally {
-            ProcessOutput.closeStreams(process);
-        }
-    }
-
-    private static boolean safeArgument(String value) {
-        return value != null && !value.isBlank() && !value.startsWith("-") && value.chars().noneMatch(c -> Character.isWhitespace(c) || c == '@');
     }
 
     private static void requireCloud(StemApi api) {

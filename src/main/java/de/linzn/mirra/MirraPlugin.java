@@ -69,6 +69,7 @@ public class MirraPlugin extends STEMPlugin {
     private static final int MAX_STATUS_LENGTH = 128;
 
     public static MirraPlugin mirraPlugin;
+    private de.linzn.mirra.ssh.SshKeyStore sshKeys;
 
     private MirraConfig mirraConfig;
     private IdentityManager identityManager;
@@ -178,6 +179,12 @@ public class MirraPlugin extends STEMPlugin {
         tools.registerAll(AssistantTools.create(this));
         tools.registerAll(MessagingTools.create(this));
         tools.registerAll(ControlTools.create(this, this.mirraConfig));
+        try {
+            this.sshKeys = new de.linzn.mirra.ssh.SshKeyStore(new java.io.File(this.getDataFolder(), "ssh").toPath(), this.getPluginLogger());
+            tools.registerAll(de.linzn.mirra.agent.tools.SshTools.create(this, this.mirraConfig, this.sshKeys));
+        } catch (java.io.IOException | RuntimeException e) {
+            this.getPluginLogger().error("SSH key store not available, shell tools disabled: " + e.getMessage());
+        }
         tools.registerAll(TaskTools.create(this));
         tools.registerAll(UserTools.create(this));
         this.agent = new MirraAgent(client, this.mirraConfig, tools, repository, memory, keeper, this.getPluginLogger(),

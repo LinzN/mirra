@@ -66,10 +66,8 @@ public final class MirraConfig {
     public final int voiceSessionMinutes;
 
     public final boolean shellEnabled;
-    public final String shellSshUser;
-    public final int shellSshPort;
     public final int shellTimeoutSeconds;
-    public final List<String> shellAllowedHosts;
+    public final de.linzn.mirra.ssh.SshLevel shellAutomaticMaxLevel;
 
     public final boolean autoCreateGuests;
     public final boolean requireApproval;
@@ -143,10 +141,8 @@ public final class MirraConfig {
         this.voiceSessionMinutes = clamp(integer(config, "voice.sessionMinutes", 15), 0, 1440);
 
         this.shellEnabled = bool(config, "agent.shell.enabled", true);
-        this.shellSshUser = string(config, "agent.shell.sshUser", "root");
-        this.shellSshPort = clamp(integer(config, "agent.shell.sshPort", 22), 1, 65535);
         this.shellTimeoutSeconds = clamp(integer(config, "agent.shell.timeoutSeconds", 120), 1, 3600);
-        this.shellAllowedHosts = stringList(config, "agent.shell.allowedHosts", List.of());
+        this.shellAutomaticMaxLevel = de.linzn.mirra.ssh.SshLevel.parse(string(config, "agent.shell.automaticMaxLevel", "read"));
 
         this.autoCreateGuests = bool(config, "users.autoCreateGuests", true);
         this.requireApproval = bool(config, "users.requireApproval", true);
