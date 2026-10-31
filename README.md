@@ -296,7 +296,7 @@ speaker and hands recorded speech to Mirra.
 - **Speech to text** uses `openAI.transcriptionModel`, **text to speech** the `voice.*` settings.
 - **Door bell**: when a door bell of home-devices rings (`MQTTDoorRingEvent`), every online device (or those in
   `voice.doorbell.devices`) plays a door bell sound right away, also in the middle of a conversation, and then
-  says `voice.doorbell.text` if set. The sound comes from the device plugin (voice-satellite: built-in "ding-dong"
+  says `voice.doorbell.text` if set. The sound comes from the device plugin (voice-satellite: built-in chime
   or an own `sounds/doorbell.wav`).
 
 ---
