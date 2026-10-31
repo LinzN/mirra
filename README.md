@@ -293,6 +293,10 @@ speaker and hands recorded speech to Mirra.
   ("um 7 Uhr im Schlafzimmer: Guten Morgen und das Wetter"), reminders and messages to a profile whose only or
   preferred channel is a speaker. A speaker is never chosen as the default channel of a person otherwise.
 - **Speech to text** uses `openAI.transcriptionModel`, **text to speech** the `voice.*` settings.
+- **Door bell**: when a door bell of home-devices rings (`MQTTDoorRingEvent`), every online device (or those in
+  `voice.doorbell.devices`) plays a door bell sound right away, also in the middle of a conversation, and then
+  says `voice.doorbell.text` if set. The sound comes from the device plugin (voice-satellite: built-in "ding-dong"
+  or an own `sounds/doorbell.wav`).
 
 ---
 
@@ -529,6 +533,9 @@ facts (`memory.legacyImported` is set afterwards).
 | `voice.engine`                     | `realtime`                  | `realtime`: a Realtime model reads the text aloud; `speech`: `/audio/speech` |
 | `voice.realtimeModel`              | `gpt-realtime-2.1-mini`     | Realtime model for the voice                 |
 | `voice.sessionMinutes`             | `15`                        | Voice devices: a conversation ends after this many idle minutes, the next question starts without the earlier history; `0` keeps the history like a chat |
+| `voice.doorbell.enabled`           | `true`                      | Play a door bell sound on the voice devices when a door bell of home-devices rings |
+| `voice.doorbell.devices`           | `[]`                        | Voice devices (id or room name) that ring; empty for all |
+| `voice.doorbell.text`              | empty                       | Text Mirra says after the sound, e.g. `Es hat an der Tür geklingelt`; `{bell}` is the name of the door bell |
 | `voice.model`                      | `gpt-4o-mini-tts`           | Speech endpoint model, used as fallback (shut down by OpenAI on 2027-01-06) |
 | `voice.voice`                      | `nova`                      | Voice; best with Realtime: `marin`, `cedar` (voices Realtime does not have become `marin`) |
 | `voice.instructions`               | `Speak in German, ...`      | How the voice should sound                   |

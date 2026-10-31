@@ -64,6 +64,9 @@ public final class MirraConfig {
     public final String transcriptionPrompt;
     public final String voiceRealtimeModel;
     public final int voiceSessionMinutes;
+    public final boolean doorbellEnabled;
+    public final List<String> doorbellDevices;
+    public final String doorbellText;
 
     public final boolean shellEnabled;
     public final int shellTimeoutSeconds;
@@ -139,6 +142,9 @@ public final class MirraConfig {
                         + "Heizung, Klimaanlage, 3D-Drucker, Wetter, Erinnerung, Küche, Wohnzimmer, Schlafzimmer, Labor.");
         this.voiceRealtimeModel = string(config, "voice.realtimeModel", "gpt-realtime-2.1-mini");
         this.voiceSessionMinutes = clamp(integer(config, "voice.sessionMinutes", 15), 0, 1440);
+        this.doorbellEnabled = bool(config, "voice.doorbell.enabled", true);
+        this.doorbellDevices = stringList(config, "voice.doorbell.devices", List.of());
+        this.doorbellText = string(config, "voice.doorbell.text", "");
 
         this.shellEnabled = bool(config, "agent.shell.enabled", true);
         this.shellTimeoutSeconds = clamp(integer(config, "agent.shell.timeoutSeconds", 120), 1, 3600);

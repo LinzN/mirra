@@ -65,7 +65,21 @@ public final class MirraVoice {
          * @param text the spoken text
          */
         void say(String deviceId, String text) throws Exception;
+
+        /**
+         * Play a sound right away, interrupting what the device does (listening, thinking, speaking).
+         *
+         * @param sound name of the sound, e.g. {@link #SOUND_DOORBELL}
+         */
+        default void play(String deviceId, String sound) throws Exception {
+            throw new UnsupportedOperationException("Sounds are not supported");
+        }
     }
+
+    /**
+     * Door bell sound, played when a door bell of home-devices rings.
+     */
+    public static final String SOUND_DOORBELL = "doorbell";
 
     public record Device(String id, String name, boolean online) {
     }
@@ -142,6 +156,18 @@ public final class MirraVoice {
             speaker.say(deviceId, text);
         } catch (Exception e) {
             throw new MessengerException("Speaking on " + deviceId + " failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Play a sound on a device.
+     */
+    public void play(String deviceId, String sound) throws MessengerException {
+        Speaker speaker = this.speakerOf(deviceId).orElseThrow(() -> new MessengerException("Unknown voice device " + deviceId));
+        try {
+            speaker.play(deviceId, sound);
+        } catch (Exception e) {
+            throw new MessengerException("Playing " + sound + " on " + deviceId + " failed: " + e.getMessage());
         }
     }
 

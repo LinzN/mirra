@@ -198,6 +198,7 @@ public class MirraPlugin extends STEMPlugin {
         /* everything registered through the API is removed again on disable */
         this.getStemApi().events().register(new StemEventListener(this));
         this.getStemApi().events().register(new MirraReminderListener(this));
+        this.getStemApi().events().register(new de.linzn.mirra.listener.DoorbellListener(this, this.mirraConfig));
         this.taskManager = new TaskManager(this, new TaskRepository(this.getStemApi().data(), this.getPluginLogger()));
         this.taskManager.start();
         this.getStemApi().events().register(new TaskEventListener(this.taskManager));
