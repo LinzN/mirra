@@ -44,8 +44,21 @@ public final class SshTools {
     private SshTools() {
     }
 
+    /**
+     * @param store Mirra's own key store, or null (agent.shell.keyStore off): then only {@code shell_run} with SSH
+     *              through the STEM user's own keys, as before the key store
+     */
     public static List<AgentTool> create(MirraPlugin plugin, MirraConfig config, SshKeyStore store) {
         List<AgentTool> tools = new ArrayList<>();
+        if (store == null) {
+            if (!config.shellKeyStore) {
+                tools.add(legacyShell(plugin, config));
+            } else {
+                /* key store wanted but broken: local commands only, never fall back to the STEM user's keys */
+                tools.add(localShell(plugin, config));
+            }
+            return tools;
+        }
 
         tools.add(new SimpleTool("shell_run",
                 "Run a shell command on the STEM server, or with 'server' on one of the registered SSH servers "
@@ -219,6 +232,69 @@ public final class SshTools {
             }
         }));
         return tools;
+    }
+
+    /**
+     * shell_run as before the key store: SSH with the keys and config of the STEM user to any host (or the hosts in
+     * agent.shell.allowedHosts).
+     */
+    private static AgentTool legacyShell(MirraPlugin plugin, MirraConfig config) {
+        return new SimpleTool("shell_run",
+                "Run a shell command on the STEM server, or with 'host' via SSH on another machine (key based login of the "
+                        + "STEM user, no password prompts). Returns exit code and output. Ask before commands that change or "
+                        + "delete something, restart services or machines, unless the person clearly asked for exactly that.",
+                Schema.object()
+                        .prop("command", string("shell command, e.g. 'df -h' or 'systemctl status nginx'"))
+                        .prop("host", nullable(string("SSH host name or IP; null to run on the STEM server")))
+                        .prop("user", nullable(string("SSH user; null for the configured default")))
+                        .prop("port", nullable(integer("SSH port; null for the configured default")))
+                        .prop("timeout_seconds", nullable(integer("timeout, default from the configuration")))
+                        .build(),
+                chat -> config.shellEnabled && chat.has(SHELL), (chat, args) -> {
+            String command = requireString(args, "command");
+            String host = optString(args, "host");
+            Integer timeoutArg = optInt(args, "timeout_seconds");
+            int timeout = timeoutArg == null ? config.shellTimeoutSeconds : Math.max(1, Math.min(3600, timeoutArg));
+            List<String> process = new ArrayList<>();
+            if (host != null) {
+                String user = optString(args, "user") == null ? config.shellSshUser : optString(args, "user");
+                Integer portArg = optInt(args, "port");
+                int port = portArg == null ? config.shellSshPort : portArg;
+                if (!safeArgument(host) || !safeArgument(user)) {
+                    throw new IllegalArgumentException("Invalid host or user");
+                }
+                if (!config.shellAllowedHosts.isEmpty() && !config.shellAllowedHosts.contains(host.toLowerCase(java.util.Locale.ROOT))) {
+                    throw new IllegalArgumentException("Host not allowed, allowed are " + config.shellAllowedHosts);
+                }
+                process.addAll(List.of("ssh", "-p", String.valueOf(port), "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
+                        user + "@" + host, command));
+            } else {
+                process.addAll(List.of("/bin/sh", "-c", command));
+            }
+            plugin.getPluginLogger().info("Shell by " + chat.name() + (host == null ? "" : " on " + host) + ": " + command);
+            return ProcessRunner.run(process, null, timeout);
+        });
+    }
+
+    private static AgentTool localShell(MirraPlugin plugin, MirraConfig config) {
+        return new SimpleTool("shell_run",
+                "Run a shell command on the STEM server. Returns exit code and output. SSH to other machines is not "
+                        + "available right now. Ask before commands that change or delete something or restart services.",
+                Schema.object()
+                        .prop("command", string("shell command, e.g. 'df -h'"))
+                        .prop("timeout_seconds", nullable(integer("timeout, default from the configuration")))
+                        .build(),
+                chat -> config.shellEnabled && chat.has(SHELL), (chat, args) -> {
+            String command = requireString(args, "command");
+            Integer timeoutArg = optInt(args, "timeout_seconds");
+            int timeout = timeoutArg == null ? config.shellTimeoutSeconds : Math.max(1, Math.min(3600, timeoutArg));
+            plugin.getPluginLogger().info("Shell by " + chat.name() + ": " + command);
+            return ProcessRunner.run(List.of("/bin/sh", "-c", command), null, timeout);
+        });
+    }
+
+    private static boolean safeArgument(String value) {
+        return value != null && !value.isBlank() && !value.startsWith("-") && value.chars().noneMatch(c -> Character.isWhitespace(c) || c == '@');
     }
 
     private static String installResult(SshKeyStore store, String name, String installAs, int port) throws Exception {

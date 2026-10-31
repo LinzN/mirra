@@ -179,12 +179,15 @@ public class MirraPlugin extends STEMPlugin {
         tools.registerAll(AssistantTools.create(this));
         tools.registerAll(MessagingTools.create(this));
         tools.registerAll(ControlTools.create(this, this.mirraConfig));
-        try {
-            this.sshKeys = new de.linzn.mirra.ssh.SshKeyStore(new java.io.File(this.getDataFolder(), "ssh").toPath(), this.getPluginLogger());
-            tools.registerAll(de.linzn.mirra.agent.tools.SshTools.create(this, this.mirraConfig, this.sshKeys));
-        } catch (java.io.IOException | RuntimeException e) {
-            this.getPluginLogger().error("SSH key store not available, shell tools disabled: " + e.getMessage());
+        if (this.mirraConfig.shellKeyStore) {
+            try {
+                this.sshKeys = new de.linzn.mirra.ssh.SshKeyStore(new java.io.File(this.getDataFolder(), "ssh").toPath(), this.getPluginLogger());
+            } catch (java.io.IOException | RuntimeException e) {
+                this.getPluginLogger().error("SSH key store not available, SSH to other machines disabled: " + e.getMessage());
+            }
         }
+        /* without the key store (agent.shell.keyStore: false) shell_run uses the SSH keys of the STEM user as before */
+        tools.registerAll(de.linzn.mirra.agent.tools.SshTools.create(this, this.mirraConfig, this.sshKeys));
         tools.registerAll(TaskTools.create(this));
         tools.registerAll(UserTools.create(this));
         this.agent = new MirraAgent(client, this.mirraConfig, tools, repository, memory, keeper, this.getPluginLogger(),

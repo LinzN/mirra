@@ -51,7 +51,7 @@ Besides chats, Mirra also acts on her own:
 | OpenAI | Tool calls are executed as requested by the model, within the permissions of the current person | Model output (can be influenced by prompt injection) |
 | STEM | STEM API, database, MQTT broker, cloud | Data coming from devices, MQTT payloads, log lines, health check texts |
 | Voice devices | Device id, after the device proved the shared device key (HMAC challenge) | Spoken content, and everybody who is in the room of the device |
-| Shell / SSH | Commands run as the operating system user of STEM; SSH only to registered servers with Mirra's own key per server | The STEM host; on each registered server what its level allows |
+| Shell / SSH | Commands run as the operating system user of STEM; SSH with its keys, or with `agent.shell.keyStore` only to registered servers with Mirra's own key per server | The STEM host; every host reachable with the STEM keys, or with the key store on each registered server what its level allows |
 
 ---
 
@@ -192,7 +192,7 @@ Likelihood and impact: **L** low, **M** medium, **H** high. Residual risk after 
 | R5 | **Forged WhatsApp messages** by anyone who can publish to the Evolution API RabbitMQ queues or call its webhook as the owner's JID | L | H | Credentials of RabbitMQ / Evolution API | Depends on network exposure of RabbitMQ and Evolution API |
 | R6 | **Compromise of a Discord or WhatsApp account** of an owner or admin | L | H | Identity bound to platform ids | **High impact** if it happens; no second factor |
 | R7 | **WhatsApp group chats**: a group would be treated as one chat | L | M | Group chats (`@g.us`) and status updates are ignored | Low |
-| R8 | **Harmful shell command by the model** (wrong host, destructive command) | M | H | `SHELL` separate from `ADMIN`, rules to ask first, only registered servers, level per server enforced by the server, timeout, audit log | **Medium** on `read`/`ops` servers, **medium–high** on the STEM host and `full` servers |
+| R8 | **Harmful shell command by the model** (wrong host, destructive command) | M | H | `SHELL` separate from `ADMIN`, rules to ask first, timeout, log; with the key store only registered servers, level per server enforced by the server, audit log; without it optional `agent.shell.allowedHosts` | **Medium–high** without the key store; with it **medium** on `read`/`ops` servers, **medium–high** on the STEM host and `full` servers |
 | R22 | **Theft of Mirra's SSH keys** from the STEM host (backup, compromised STEM user) | L | M–H | One key per server, files `600`, `from=` restriction, level per server, rotation and removal per server | Low–medium; with `from=` set a stolen key only works from the STEM host |
 | R9 | **Unwanted smart home actions** (heating, sockets with devices attached) from misunderstood requests | M | M | Permission levels, rules to ask before actions outside the request | Medium |
 | R10 | **Memory poisoning**: a user stores false household facts or profile data that influence later answers | M | L | Household facts need `MEMORY`; profiles editable only by their owner or `ADMIN` | Low |
@@ -213,7 +213,7 @@ Likelihood and impact: **L** low, **M** medium, **H** high. Residual risk after 
 1. **R1/R2 – prompt injection, especially through the watchdog.** Mirra reads the log from STEM's in-memory
    buffer (not from the log file), but the risk is the content: log lines and health check texts can contain text
    controlled by devices or external systems (device names, error messages of remote hosts, MQTT payloads). The watchdog runs with the approver's permissions; for an owner
-   this includes the shell on the STEM host. SSH servers above `agent.shell.automaticMaxLevel` (default `read`) are
+   this includes the shell. With the key store, SSH servers above `agent.shell.automaticMaxLevel` (default `read`) are
    not available to automatic runs.
 2. **R4 – SSRF** through `send_file` with a URL for every registered user.
 3. **R8 – shell commands chosen by the model**: limited by the level on SSH servers, not on the STEM host itself.
@@ -229,7 +229,7 @@ Ordered by benefit:
 2. **Give `ADMIN` only to trusted people.** `stem_sql` and `stem_data_set` are owner-only, but administrators
    can still run console commands and scripts; check which of them could change Mirra's tables indirectly.
 3. **Restrict `send_file` URLs** to `ADMIN`, or block private and local address ranges (code change).
-4. **Register SSH servers with the lowest level that works** (`read` where Mirra only has to look), always with
+4. **Turn on the key store** (`agent.shell.keyStore: true`) and **register SSH servers with the lowest level that works** (`read` where Mirra only has to look), always with
    `allowed_from`, and rotate the keys from time to time (`ssh_server_manage` action `rotate`).
 5. **Keep `SHELL` and `OWNER` to one person**, and keep `agent.blockedCommands` up to date with destructive STEM
    console commands.

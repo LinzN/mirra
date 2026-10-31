@@ -71,6 +71,10 @@ public final class MirraConfig {
     public final boolean shellEnabled;
     public final int shellTimeoutSeconds;
     public final de.linzn.mirra.ssh.SshLevel shellAutomaticMaxLevel;
+    public final boolean shellKeyStore;
+    public final String shellSshUser;
+    public final int shellSshPort;
+    public final List<String> shellAllowedHosts;
 
     public final boolean autoCreateGuests;
     public final boolean requireApproval;
@@ -149,6 +153,12 @@ public final class MirraConfig {
         this.shellEnabled = bool(config, "agent.shell.enabled", true);
         this.shellTimeoutSeconds = clamp(integer(config, "agent.shell.timeoutSeconds", 120), 1, 3600);
         this.shellAutomaticMaxLevel = de.linzn.mirra.ssh.SshLevel.parse(string(config, "agent.shell.automaticMaxLevel", "read"));
+        /* false: SSH with the keys of the STEM user to any host (as before); true: Mirra's own key store */
+        this.shellKeyStore = bool(config, "agent.shell.keyStore", false);
+        this.shellSshUser = string(config, "agent.shell.sshUser", "root");
+        this.shellSshPort = clamp(integer(config, "agent.shell.sshPort", 22), 1, 65535);
+        this.shellAllowedHosts = stringList(config, "agent.shell.allowedHosts", List.of()).stream()
+                .map(host -> host.toLowerCase(java.util.Locale.ROOT)).toList();
 
         this.autoCreateGuests = bool(config, "users.autoCreateGuests", true);
         this.requireApproval = bool(config, "users.requireApproval", true);
